@@ -1,0 +1,26 @@
+[package]
+name = "debbugs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jelmer Vernooĳ <jelmer@jelmer.uk>"]
+repository = "https://github.com/jelmer/debbugs-rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger = { version = "0.10.0", optional = true }
+lazy-regex = "3.0.2"
+log = "0.4.20"
+maplit = "1.0.2"
+reqwest = "0.11"
+tokio = { version = "1", optional = true, features = ["full"] }
+xmltree = "0.10.3"
+
+[features]
+blocking = ["reqwest/blocking"]
+default = ["blocking", "tokio"]
+tokio = ["dep:tokio"]
+
+[[example]]
+name = "newest"
+required-features = ["tokio"]
