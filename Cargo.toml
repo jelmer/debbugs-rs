@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Jelmer Vernooĳ <jelmer@jelmer.uk>"]
 repository = "https://github.com/jelmer/debbugs-rs"
+description = "Debian Bugtracking System API client"
 readme = "README.md"
 license = "Apache-2.0"
 
