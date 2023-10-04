@@ -7,11 +7,68 @@ pub const SOAP_ENCODING: &str = "http://www.w3.org/2003/05/soap-encoding";
 pub const XMLNS_SOAP: &str = "http://xml.apache.org/xml-soap";
 pub const XMLNS_SOAPENV: &str = "http://schemas.xmlsoap.org/soap/envelope/";
 pub const XMLNS_SOAPENC: &str = "http://schemas.xmlsoap.org/soap/encoding/";
+pub const XMLNS_XSI: &str = "http://www.w3.org/1999/XMLSchema-instance";
+pub const XMLNS_XSD: &str = "http://www.w3.org/1999/XMLSchema";
+
+#[derive(Debug, PartialEq)]
+pub struct Fault {
+    pub faultcode: String,
+    pub faultstring: String,
+    pub faultactor: Option<String>,
+    pub detail: Option<String>,
+}
+
+impl std::fmt::Display for Fault {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{{ faultcode: {}, faultstring: {}, faultactor: {:?}, detail: {:?} }}",
+            self.faultcode, self.faultstring, self.faultactor, self.detail
+        )
+    }
+}
+
+pub(crate) fn parse_fault(input: &str) -> Result<Fault, String> {
+    // Parse the input XML string into an Element
+    let root = Element::parse(input.as_bytes()).map_err(|e| e.to_string())?;
+
+    if root.name != "Envelope" || root.namespace.as_deref() != Some(XMLNS_SOAPENV) {
+        return Err("Root element is not a valid soap:Envelope".into());
+    }
+
+    let body_elem = root.get_child("Body").ok_or("soap:Body not found")?;
+
+    if body_elem.namespace.as_deref() != Some(XMLNS_SOAPENV) {
+        return Err(format!(
+            "Namespace for soap:Body is incorrect: {:?}",
+            body_elem.namespace
+        ));
+    }
+
+    let fault = body_elem.get_child("Fault").ok_or("soap:Fault not found")?;
+
+    let faultcode = fault.get_child("faultcode").ok_or("faultcode not found")?;
+    let faultstring = fault
+        .get_child("faultstring")
+        .ok_or("faultstring not found")?;
+    let faultactor = fault.get_child("faultactor");
+    let detail = fault.get_child("detail");
+
+    Ok(Fault {
+        faultcode: faultcode.get_text().unwrap().to_string(),
+        faultstring: faultstring.get_text().unwrap().to_string(),
+        faultactor: faultactor.and_then(|s| s.get_text()).map(|s| s.to_string()),
+        detail: detail.and_then(|s| s.get_text()).map(|s| s.to_string()),
+    })
+}
 
 fn build_request_envelope(name: &str, arguments: Vec<Element>) -> xmltree::Element {
     let mut namespace = xmltree::Namespace::empty();
     namespace.put("soapenv", XMLNS_SOAPENV);
     namespace.put("tns", XMLNS_SOAP);
+    namespace.put("soapenc", XMLNS_SOAPENC);
+    namespace.put("xsi", XMLNS_XSI);
+    namespace.put("xsd", XMLNS_XSD);
 
     Element {
         name: "Envelope".to_string(),
@@ -50,6 +107,22 @@ pub(crate) fn newest_bugs_request(amount: i32) -> xmltree::Element {
             prefix: None,
             namespace: None,
             attributes: hashmap! {},
+        }],
+    )
+}
+
+pub(crate) fn get_bug_log_request(bugid: i32) -> xmltree::Element {
+    build_request_envelope(
+        "get_bug_log",
+        vec![Element {
+            name: "bugnumber".to_string(),
+            namespaces: None,
+            children: vec![XMLNode::Text(bugid.to_string())],
+            prefix: None,
+            namespace: None,
+            attributes: hashmap! {
+                "xsi:type".into() => "xsd:int".into(),
+            },
         }],
     )
 }
@@ -155,4 +228,106 @@ fn test_parse_newest_bugs_response() {
         integers,
         vec![66320, 66321, 66322, 66323, 66324, 66325, 66326, 66327, 66328, 66329]
     );
+}
+
+#[derive(Debug)]
+pub struct BugReport {}
+
+impl std::fmt::Display for BugReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BugLog {
+    pub header: String,
+    pub msgnum: usize,
+    pub body: String,
+}
+
+impl BugLog {
+    #[cfg(feature = "mailparse")]
+    pub fn headers(&self) -> Result<Vec<mailparse::MailHeader>, mailparse::MailParseError> {
+        let (headers, _ix_body) = mailparse::parse_headers(self.header.as_bytes())?;
+        Ok(headers)
+    }
+}
+
+fn parse_buglog(item: &xmltree::Element) -> Result<BugLog, String> {
+    let mut header = None;
+    let mut msgnum = None;
+    let mut body = None;
+    for child in item.children.iter() {
+        if let xmltree::XMLNode::Element(e) = child {
+            match e.name.as_str() {
+                "header" => {
+                    header = Some(e.get_text().unwrap().to_string());
+                }
+                "msg_num" => {
+                    msgnum = Some(e.get_text().unwrap().parse().unwrap());
+                }
+                "body" => {
+                    body = Some(e.get_text().unwrap().to_string());
+                }
+                "attachments" => {
+                    if !e.children.is_empty() {
+                        panic!("Attachments not supported yet");
+                    }
+                }
+                n => {
+                    panic!("Unknown element: {}", n)
+                }
+            }
+        }
+    }
+    Ok(BugLog {
+        header: header.unwrap(),
+        msgnum: msgnum.unwrap(),
+        body: body.unwrap(),
+    })
+}
+
+pub(crate) fn parse_get_bug_log_response(input: &str) -> Result<Vec<BugLog>, String> {
+    let response_elem = parse_response_envelope(input, "get_bug_log")?;
+
+    let array_elem = response_elem
+        .get_child("Array")
+        .ok_or("soapenc:Array not found")?;
+
+    if array_elem.namespace.as_deref() != Some(XMLNS_SOAPENC) {
+        return Err(format!(
+            "Namespace for soapenc:Array is incorrect: {:?}",
+            array_elem.namespace
+        ));
+    }
+
+    match array_elem.attributes.get("arrayType") {
+        None => return Err("soapenc:Array does not have soapenc:arrayType attribute".to_string()),
+        Some(value) => {
+            if !regex_is_match!(r"xsd:ur-type\[[0-9]+\]", value) {
+                return Err(format!(
+                    "soapenc:Array has incorrect soapenc:arrayType attribute: {}",
+                    value
+                ));
+            }
+        }
+    }
+
+    if array_elem.attributes.get("type") != Some(&"soapenc:Array".to_string()) {
+        return Err(format!(
+            "soapenc:Array does not have xsi:type attribute: {:?}",
+            array_elem.attributes.get("type")
+        ));
+    }
+
+    let mut ret = vec![];
+    for item in array_elem.children.iter() {
+        if let xmltree::XMLNode::Element(e) = item {
+            if e.name == "item" {
+                ret.push(parse_buglog(e)?);
+            }
+        }
+    }
+    Ok(ret)
 }

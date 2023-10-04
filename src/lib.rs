@@ -8,15 +8,15 @@
 //!```
 //!
 mod soap;
-use log::{debug};
-
-
+use log::debug;
+pub use soap::{BugLog, BugReport};
 
 #[derive(Debug)]
 pub enum Error {
     SoapError(String),
     XmlError(String),
     ReqwestError(reqwest::Error),
+    Fault(soap::Fault),
 }
 
 impl From<reqwest::Error> for Error {
@@ -31,13 +31,14 @@ impl std::fmt::Display for Error {
             Error::SoapError(err) => write!(f, "SOAP Error: {}", err),
             Error::XmlError(err) => write!(f, "XML Error: {}", err),
             Error::ReqwestError(err) => write!(f, "Reqwest Error: {}", err),
+            Error::Fault(err) => write!(f, "Fault: {}", err),
         }
     }
 }
 
 impl std::error::Error for Error {}
 
-pub type SoapResponse = Result<(reqwest::StatusCode, String), reqwest::Error>;
+pub type SoapResponse = Result<(reqwest::StatusCode, String), Error>;
 
 impl Debbugs {
     async fn send_soap_request(&self, request: &xmltree::Element, action: &str) -> SoapResponse {
@@ -51,8 +52,13 @@ impl Debbugs {
             .header("Content-Type", "text/xml")
             .header("Soapaction", action);
         let res = req.send().await?;
-        res.error_for_status_ref()?;
         let status = res.status();
+        if status.is_client_error() || status.is_server_error() {
+            let txt = res.text().await.unwrap();
+            debug!("SOAP Response: {}", txt);
+            let fault = soap::parse_fault(&txt).map_err(Error::XmlError)?;
+            return Err(Error::Fault(fault));
+        }
         debug!("SOAP Status: {}", status);
         let txt = res.text().await.unwrap_or_default();
         debug!("SOAP Response: {}", txt);
@@ -86,6 +92,13 @@ impl Debbugs {
         let (_status, response) = self.send_soap_request(&request, "Debbugs/SOAP").await?;
 
         soap::parse_newest_bugs_response(&response).map_err(Error::XmlError)
+    }
+
+    pub async fn get_bug_log(&self, bug_id: i32) -> Result<Vec<BugLog>, Error> {
+        let request = soap::get_bug_log_request(bug_id);
+        let (_status, response) = self.send_soap_request(&request, "Debbugs/SOAP").await?;
+
+        soap::parse_get_bug_log_response(&response).map_err(Error::XmlError)
     }
 }
 
