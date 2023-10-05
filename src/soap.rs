@@ -801,3 +801,40 @@ pub(crate) fn parse_get_status_response(input: &str) -> Result<HashMap<BugId, Bu
 
     Ok(ret)
 }
+
+pub(crate) fn get_usertag_request(email: &str, tags: &[&str]) -> xmltree::Element {
+    let mut params = Vec::new();
+    add_arg_xml(&mut params, email);
+    for tag in tags {
+        add_arg_xml(&mut params, *tag);
+    }
+    build_request_envelope("get_usertag", params)
+}
+
+pub(crate) fn parse_get_usertag_response(
+    input: &str,
+) -> Result<HashMap<String, Vec<crate::BugId>>, String> {
+    let response_elem = parse_response_envelope(input, "get_usertag")?;
+
+    let container = response_elem
+        .get_child("s-gensym3")
+        .ok_or("s-gensym3 not found")?;
+
+    let mut ret = HashMap::new();
+
+    for child in container.children.iter() {
+        if let Some(e) = child.as_element() {
+            let mut ids = vec![];
+            for item in e.children.iter() {
+                if let xmltree::XMLNode::Element(e) = item {
+                    if e.name == "item" {
+                        ids.push(e.get_text().unwrap().parse::<BugId>().unwrap());
+                    }
+                }
+            }
+            ret.insert(e.name.clone(), ids);
+        }
+    }
+
+    Ok(ret)
+}
