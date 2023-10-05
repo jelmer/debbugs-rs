@@ -79,4 +79,15 @@ impl Debbugs {
 
         crate::soap::parse_get_status_response(&response).map_err(Error::XmlError)
     }
+
+    pub async fn get_usertag(
+        &self,
+        email: &str,
+        usertags: &[&str],
+    ) -> Result<std::collections::HashMap<String, Vec<BugId>>, Error> {
+        let request = crate::soap::get_usertag_request(email, usertags);
+        let (_status, response) = self.send_soap_request(&request, "get_usertag").await?;
+
+        crate::soap::parse_get_usertag_response(&response).map_err(Error::XmlError)
+    }
 }

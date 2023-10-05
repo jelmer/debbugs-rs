@@ -10,6 +10,10 @@ required-features = [ "tokio",]
 name = "get_bugs"
 required-features = [ "tokio",]
 
+[[example]]
+name = "get_usertag"
+required-features = [ "tokio",]
+
 [package]
 name = "debbugs"
 version = "0.1.2"
