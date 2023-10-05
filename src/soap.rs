@@ -144,8 +144,10 @@ fn test_newest_bugs_request_serialize() {
     let request = newest_bugs_request(10);
     assert_eq!(request.name, "Envelope");
     assert_eq!(request.namespace.as_deref(), Some(XMLNS_SOAPENV));
-    assert_eq!(request.children.len(), 1);
-    let body = request.children[0].as_element().unwrap();
+    assert_eq!(request.children.len(), 2);
+    let header = request.children[0].as_element().unwrap();
+    assert_eq!(header.name, "Header");
+    let body = request.children[1].as_element().unwrap();
     assert_eq!(body.name, "Body");
     assert_eq!(body.namespace.as_deref(), Some(XMLNS_SOAPENV));
     assert_eq!(body.children.len(), 1);
