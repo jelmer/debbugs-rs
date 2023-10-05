@@ -1,3 +1,4 @@
+use debversion::Version;
 use lazy_regex::regex_is_match;
 use maplit::hashmap;
 
@@ -11,6 +12,7 @@ pub const XMLNS_SOAPENV: &str = "http://schemas.xmlsoap.org/soap/envelope/";
 pub const XMLNS_SOAPENC: &str = "http://schemas.xmlsoap.org/soap/encoding/";
 pub const XMLNS_XSI: &str = "http://www.w3.org/1999/XMLSchema-instance";
 pub const XMLNS_XSD: &str = "http://www.w3.org/1999/XMLSchema";
+pub const XMLNS_DEBBUGS: &str = "Debbugs/SOAP";
 
 #[derive(Debug, PartialEq)]
 pub struct Fault {
@@ -142,8 +144,10 @@ fn test_newest_bugs_request_serialize() {
     let request = newest_bugs_request(10);
     assert_eq!(request.name, "Envelope");
     assert_eq!(request.namespace.as_deref(), Some(XMLNS_SOAPENV));
-    assert_eq!(request.children.len(), 1);
-    let body = request.children[0].as_element().unwrap();
+    assert_eq!(request.children.len(), 2);
+    let header = request.children[0].as_element().unwrap();
+    assert_eq!(header.name, "Header");
+    let body = request.children[1].as_element().unwrap();
     assert_eq!(body.name, "Body");
     assert_eq!(body.namespace.as_deref(), Some(XMLNS_SOAPENV));
     assert_eq!(body.children.len(), 1);
@@ -237,11 +241,198 @@ fn test_parse_newest_bugs_response() {
 }
 
 #[derive(Debug)]
-pub struct BugReport {}
+pub struct BugReport {
+    pending: Option<crate::BugStatus>,
+    msgid: Option<String>,
+    owner: Option<String>,
+    keywords: Option<String>,
+    affects: Option<String>,
+    unarchived: Option<String>,
+    forwarded: Option<String>,
+    summary: Option<String>,
+    bug_num: Option<i32>,
+    archived: Option<crate::Archived>,
+    found_versions: Option<Vec<Version>>,
+    done: Option<String>,
+    severity: Option<String>,
+    package: Option<String>,
+    fixed_versions: Option<Vec<(Option<String>, Version)>>,
+    originator: Option<String>,
+    blocks: Option<String>,
+    found_date: Option<Vec<u32>>,
+    outlook: Option<String>,
+    id: Option<BugId>,
+    found: bool,
+    fixed: bool,
+    last_modified: Option<u32>,
+    tags: Option<String>,
+    subject: Option<String>,
+    location: Option<String>,
+    mergedwith: Option<String>,
+    blockedby: Option<String>,
+    fixed_date: Option<Vec<u32>>,
+    log_modified: Option<u32>,
+    source: Option<String>,
+}
 
 impl std::fmt::Display for BugReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
+    }
+}
+
+fn parse_version(input: &str) -> (Option<String>, Version) {
+    match input.split_once('/') {
+        None => (None, input.parse().unwrap()),
+        Some((package, version)) => (Some(package.to_string()), version.parse().unwrap()),
+    }
+}
+
+impl From<&xmltree::Element> for BugReport {
+    fn from(item: &xmltree::Element) -> Self {
+        Self {
+            pending: item
+                .get_child("pending")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            msgid: item
+                .get_child("msgid")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            owner: item
+                .get_child("owner")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            keywords: item
+                .get_child("keywords")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            affects: item
+                .get_child("affects")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            unarchived: item
+                .get_child("unarchived")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            blocks: item
+                .get_child("blocks")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            found_date: item.get_child("found_date").map(|e| {
+                e.children
+                    .iter()
+                    .filter_map(|c| c.as_element())
+                    .filter_map(|c| {
+                        if c.name == "item" {
+                            Some(c.get_text().unwrap().parse().unwrap())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            }),
+            fixed_versions: item.get_child("fixed_versions").map(|f| {
+                f.children
+                    .iter()
+                    .filter_map(|c| {
+                        c.as_element()
+                            .and_then(|c| if c.name == "item" { Some(c) } else { None })
+                    })
+                    .map(|d| parse_version(d.get_text().unwrap().as_ref()))
+                    .collect::<Vec<_>>()
+            }),
+            outlook: item
+                .get_child("outlook")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            done: item
+                .get_child("done")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            forwarded: item
+                .get_child("forwarded")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            summary: item
+                .get_child("summary")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            bug_num: item
+                .get_child("bug_num")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            id: item
+                .get_child("id")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            archived: item
+                .get_child("archived")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            found_versions: item.get_child("found_versions").map(|f| {
+                f.children
+                    .iter()
+                    .filter_map(|c| {
+                        c.as_element()
+                            .and_then(|c| if c.name == "item" { Some(c) } else { None })
+                    })
+                    .map(|d| d.get_text().unwrap().parse::<Version>().unwrap())
+                    .collect::<Vec<_>>()
+            }),
+            found: item.get_child("found").is_some(),
+            fixed: item.get_child("fixed").is_some(),
+            last_modified: item
+                .get_child("last_modified")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            tags: item
+                .get_child("tags")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            subject: item
+                .get_child("subject")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            source: item
+                .get_child("source")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            originator: item
+                .get_child("originator")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            package: item
+                .get_child("package")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            location: item
+                .get_child("location")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            log_modified: item
+                .get_child("log_modified")
+                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            mergedwith: item
+                .get_child("mergedwith")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            severity: item
+                .get_child("severity")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            blockedby: item
+                .get_child("blockedby")
+                .and_then(|e| e.get_text())
+                .map(|s| s.to_string()),
+            fixed_date: item.get_child("fixed_date").map(|e| {
+                e.children
+                    .iter()
+                    .filter_map(|c| c.as_element())
+                    .filter_map(|c| {
+                        if c.name == "item" {
+                            Some(c.get_text().unwrap().parse().unwrap())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            }),
+        }
     }
 }
 
@@ -427,15 +618,7 @@ impl ToArgXml for &[BugId] {
     }
 }
 
-fn add_arg_xml<T: ToArgXml>(params: &mut Vec<xmltree::Element>, name: &str, arg: T) {
-    params.push(xmltree::Element {
-        prefix: None,
-        namespace: None,
-        namespaces: None,
-        name: format!("arg{}", params.len()),
-        attributes: HashMap::new(),
-        children: vec![xmltree::XMLNode::Text(name.to_string())],
-    });
+fn add_arg_xml<T: ToArgXml>(params: &mut Vec<xmltree::Element>, arg: T) {
     params.push(arg.to_arg_xml(format!("arg{}", params.len())));
 }
 
@@ -458,47 +641,58 @@ pub(crate) fn get_bugs_request(query: &SearchQuery) -> xmltree::Element {
     let mut params = Vec::new();
 
     if let Some(package) = query.package {
-        add_arg_xml(&mut params, "package", package);
+        add_arg_xml(&mut params, "package");
+        add_arg_xml(&mut params, package);
     }
 
     if let Some(bug_ids) = query.bug_ids {
-        add_arg_xml(&mut params, "bugs", bug_ids);
+        add_arg_xml(&mut params, "bugs");
+        add_arg_xml(&mut params, bug_ids);
     }
 
     if let Some(submitter) = query.submitter {
-        add_arg_xml(&mut params, "submitter", submitter);
+        add_arg_xml(&mut params, "submitter");
+        add_arg_xml(&mut params, submitter);
     }
 
     if let Some(maintainer) = query.maintainer {
-        add_arg_xml(&mut params, "maint", maintainer);
+        add_arg_xml(&mut params, "maint");
+        add_arg_xml(&mut params, maintainer);
     }
 
     if let Some(src) = query.src {
-        add_arg_xml(&mut params, "src", src);
+        add_arg_xml(&mut params, "src");
+        add_arg_xml(&mut params, src);
     }
 
     if let Some(severity) = query.severity {
-        add_arg_xml(&mut params, "severity", severity);
+        add_arg_xml(&mut params, "severity");
+        add_arg_xml(&mut params, severity);
     }
 
     if let Some(status) = query.status {
-        add_arg_xml(&mut params, "status", status.to_string().as_str());
+        add_arg_xml(&mut params, "status");
+        add_arg_xml(&mut params, status.to_string().as_str());
     }
 
     if let Some(owner) = query.owner {
-        add_arg_xml(&mut params, "owner", owner);
+        add_arg_xml(&mut params, "owner");
+        add_arg_xml(&mut params, owner);
     }
 
     if let Some(correspondent) = query.correspondent {
-        add_arg_xml(&mut params, "correspondent", correspondent);
+        add_arg_xml(&mut params, "correspondent");
+        add_arg_xml(&mut params, correspondent);
     }
 
     if let Some(archive) = query.archive {
-        add_arg_xml(&mut params, "archive", archive.to_string().as_str());
+        add_arg_xml(&mut params, "archive");
+        add_arg_xml(&mut params, archive.to_string().as_str());
     }
 
     if let Some(tag) = query.tag {
-        add_arg_xml(&mut params, "tag", tag);
+        add_arg_xml(&mut params, "tag");
+        add_arg_xml(&mut params, tag);
     }
 
     build_request_envelope("get_bugs", params)
@@ -545,4 +739,53 @@ pub(crate) fn parse_get_bugs_response(input: &str) -> Result<Vec<crate::BugId>, 
     }
 
     Ok(integers)
+}
+
+pub(crate) fn get_status_request(bug_ids: &[BugId]) -> xmltree::Element {
+    let mut params = Vec::new();
+    add_arg_xml(&mut params, bug_ids);
+    build_request_envelope("get_status", params)
+}
+
+pub(crate) fn parse_get_status_response(input: &str) -> Result<HashMap<BugId, BugReport>, String> {
+    let response_elem = parse_response_envelope(input, "get_status")?;
+
+    if response_elem.namespace.as_deref() != Some(XMLNS_DEBBUGS) {
+        return Err(format!(
+            "Namespace for get_statusResponse is incorrect: {:?}",
+            response_elem.namespace
+        ));
+    }
+
+    let container = response_elem
+        .get_child("s-gensym3")
+        .ok_or("s-gensym3 not found")?;
+
+    let mut ret = HashMap::new();
+    for item in container.children.iter() {
+        if let xmltree::XMLNode::Element(e) = item {
+            if e.name == "item" {
+                if e.namespace.as_deref() != Some(XMLNS_DEBBUGS) {
+                    return Err(format!(
+                        "Namespace for item is incorrect: {:?}",
+                        e.namespace
+                    ));
+                }
+
+                let key = e
+                    .get_child("key")
+                    .ok_or("key not found")?
+                    .get_text()
+                    .ok_or("key has no text")?
+                    .parse::<BugId>()
+                    .unwrap();
+
+                let value = BugReport::from(e.get_child("value").ok_or("value not found")?);
+
+                ret.insert(key, value);
+            }
+        }
+    }
+
+    Ok(ret)
 }
