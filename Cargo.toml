@@ -27,6 +27,7 @@ log = "0.4.20"
 maplit = "1.0.2"
 reqwest = "0.11"
 xmltree = "0.10.3"
+debversion = "0.2.2"
 
 [features]
 blocking = [ "reqwest/blocking",]

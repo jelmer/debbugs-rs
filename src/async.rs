@@ -69,4 +69,14 @@ impl Debbugs {
 
         soap::parse_get_bugs_response(&response).map_err(Error::XmlError)
     }
+
+    pub async fn get_status(
+        &self,
+        bug_ids: &[BugId],
+    ) -> Result<std::collections::HashMap<BugId, crate::soap::BugReport>, Error> {
+        let request = crate::soap::get_status_request(bug_ids);
+        let (_status, response) = self.send_soap_request(&request, "get_status").await?;
+
+        crate::soap::parse_get_status_response(&response).map_err(Error::XmlError)
+    }
 }
