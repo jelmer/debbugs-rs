@@ -7,6 +7,7 @@ use crate::BugId;
 use std::collections::HashMap;
 use xmltree::{Element, XMLNode};
 
+#[allow(dead_code)]
 pub const XMLNS_SOAP: &str = "http://xml.apache.org/xml-soap";
 pub const XMLNS_SOAPENV: &str = "http://schemas.xmlsoap.org/soap/envelope/";
 pub const XMLNS_SOAPENC: &str = "http://schemas.xmlsoap.org/soap/encoding/";
@@ -242,42 +243,53 @@ fn test_parse_newest_bugs_response() {
 
 #[derive(Debug)]
 pub struct BugReport {
-    pending: Option<crate::BugStatus>,
-    msgid: Option<String>,
-    owner: Option<String>,
-    keywords: Option<String>,
-    affects: Option<String>,
-    unarchived: Option<String>,
-    forwarded: Option<String>,
-    summary: Option<String>,
-    bug_num: Option<i32>,
-    archived: Option<crate::Archived>,
-    found_versions: Option<Vec<Version>>,
-    done: Option<String>,
-    severity: Option<String>,
-    package: Option<String>,
-    fixed_versions: Option<Vec<(Option<String>, Version)>>,
-    originator: Option<String>,
-    blocks: Option<String>,
-    found_date: Option<Vec<u32>>,
-    outlook: Option<String>,
-    id: Option<BugId>,
-    found: bool,
-    fixed: bool,
-    last_modified: Option<u32>,
-    tags: Option<String>,
-    subject: Option<String>,
-    location: Option<String>,
-    mergedwith: Option<String>,
-    blockedby: Option<String>,
-    fixed_date: Option<Vec<u32>>,
-    log_modified: Option<u32>,
-    source: Option<String>,
+    pub pending: Option<crate::BugStatus>,
+    pub msgid: Option<String>,
+    pub owner: Option<String>,
+    pub keywords: Option<String>,
+    pub affects: Option<String>,
+    pub unarchived: Option<String>,
+    pub forwarded: Option<String>,
+    pub summary: Option<String>,
+    pub bug_num: Option<i32>,
+    pub archived: Option<crate::Archived>,
+    pub found_versions: Option<Vec<Version>>,
+    pub done: Option<String>,
+    pub severity: Option<String>,
+    pub package: Option<String>,
+    pub fixed_versions: Option<Vec<(Option<String>, Version)>>,
+    pub originator: Option<String>,
+    pub blocks: Option<String>,
+    pub found_date: Option<Vec<u32>>,
+    pub outlook: Option<String>,
+    pub id: Option<BugId>,
+    pub found: bool,
+    pub fixed: bool,
+    pub last_modified: Option<u32>,
+    pub tags: Option<String>,
+    pub subject: Option<String>,
+    pub location: Option<String>,
+    pub mergedwith: Option<String>,
+    pub blockedby: Option<String>,
+    pub fixed_date: Option<Vec<u32>>,
+    pub log_modified: Option<u32>,
+    pub source: Option<String>,
 }
 
 impl std::fmt::Display for BugReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        if let Some(bug_num) = self.bug_num {
+            write!(f, "Bug #{}", bug_num)?;
+        } else {
+            write!(f, "Bug #?")?;
+        }
+        if let Some(package) = &self.package {
+            write!(f, " in {}", package)?;
+        }
+        if let Some(summary) = &self.summary {
+            write!(f, ": {}", summary)?;
+        }
+        Ok(())
     }
 }
 
