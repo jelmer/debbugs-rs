@@ -9,4 +9,8 @@ Example:
 ```rust
 
 let client = debbugs::Debbugs::default();  // Connect to default instance
-client
+println!("Lastest 10 bugs: {:?}", client.newest_bugs(10));
+```
+
+There are two separate interfaces, one in debbugs::Debbugs, which is
+async - and one in debbugs::blocking::Debbugs.

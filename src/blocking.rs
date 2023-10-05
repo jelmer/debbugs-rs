@@ -1,6 +1,6 @@
 use log::debug;
 
-use crate::{Error, SoapResponse};
+use crate::{BugId, Error, SoapResponse};
 
 impl Debbugs {
     fn send_soap_request(&self, request: &xmltree::Element, action: &str) -> SoapResponse {
@@ -30,7 +30,7 @@ impl Debbugs {
 
 impl Default for Debbugs {
     fn default() -> Self {
-        Self::new("https://debbugs.gnu.org/cgi/soap.cgi")
+        Self::new(crate::DEFAULT_URL)
     }
 }
 
@@ -47,17 +47,24 @@ pub struct Debbugs {
     url: String,
 }
 impl Debbugs {
-    pub fn newest_bugs(&self, amount: i32) -> Result<Vec<i32>, Error> {
+    pub fn newest_bugs(&self, amount: i32) -> Result<Vec<BugId>, Error> {
         let request = crate::soap::newest_bugs_request(amount);
-        let (_status, response) = self.send_soap_request(&request, "Debbugs/SOAP")?;
+        let (_status, response) = self.send_soap_request(&request, "newest_bugs")?;
 
         crate::soap::parse_newest_bugs_response(&response).map_err(Error::XmlError)
     }
 
-    pub fn get_bug_log(&self, bug_id: i32) -> Result<Vec<crate::soap::BugLog>, Error> {
+    pub fn get_bug_log(&self, bug_id: BugId) -> Result<Vec<crate::soap::BugLog>, Error> {
         let request = crate::soap::get_bug_log_request(bug_id);
-        let (_status, response) = self.send_soap_request(&request, "Debbugs/SOAP")?;
+        let (_status, response) = self.send_soap_request(&request, "get_bug_log")?;
 
         crate::soap::parse_get_bug_log_response(&response).map_err(Error::XmlError)
+    }
+
+    pub fn get_bugs(&self, query: &crate::SearchQuery) -> Result<Vec<BugId>, Error> {
+        let request = crate::soap::get_bugs_request(query);
+        let (_status, response) = self.send_soap_request(&request, "get_bugs")?;
+
+        crate::soap::parse_get_bugs_response(&response).map_err(Error::XmlError)
     }
 }

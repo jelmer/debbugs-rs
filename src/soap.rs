@@ -1,9 +1,11 @@
 use lazy_regex::regex_is_match;
 use maplit::hashmap;
 
+use crate::BugId;
+
+use std::collections::HashMap;
 use xmltree::{Element, XMLNode};
 
-pub const SOAP_ENCODING: &str = "http://www.w3.org/2003/05/soap-encoding";
 pub const XMLNS_SOAP: &str = "http://xml.apache.org/xml-soap";
 pub const XMLNS_SOAPENV: &str = "http://schemas.xmlsoap.org/soap/envelope/";
 pub const XMLNS_SOAPENC: &str = "http://schemas.xmlsoap.org/soap/encoding/";
@@ -64,36 +66,41 @@ pub(crate) fn parse_fault(input: &str) -> Result<Fault, String> {
 
 fn build_request_envelope(name: &str, arguments: Vec<Element>) -> xmltree::Element {
     let mut namespace = xmltree::Namespace::empty();
-    namespace.put("soapenv", XMLNS_SOAPENV);
-    namespace.put("tns", XMLNS_SOAP);
-    namespace.put("soapenc", XMLNS_SOAPENC);
+    namespace.put("soap", XMLNS_SOAPENV);
     namespace.put("xsi", XMLNS_XSI);
     namespace.put("xsd", XMLNS_XSD);
 
     Element {
         name: "Envelope".to_string(),
-        prefix: Some("soapenv".to_string()),
+        prefix: Some("soap".to_string()),
         namespaces: Some(namespace.clone()),
         namespace: Some(XMLNS_SOAPENV.to_string()),
-        attributes: hashmap! {
-            "soapenv:encodingStyle".to_string() => SOAP_ENCODING.to_string(),
-
-        },
-        children: vec![XMLNode::Element(Element {
-            name: "Body".to_string(),
-            prefix: Some("soapenv".to_string()),
-            namespaces: Some(namespace.clone()),
-            namespace: Some(XMLNS_SOAPENV.to_string()),
-            attributes: hashmap![],
-            children: vec![XMLNode::Element(Element {
-                name: name.to_string(),
-                namespaces: None,
-                children: arguments.into_iter().map(XMLNode::Element).collect(),
-                prefix: None,
-                namespace: None,
-                attributes: hashmap! {},
-            })],
-        })],
+        attributes: hashmap! {},
+        children: vec![
+            XMLNode::Element(Element {
+                name: "Header".to_string(),
+                prefix: Some("soap".to_string()),
+                namespaces: Some(namespace.clone()),
+                namespace: Some(XMLNS_SOAPENV.to_string()),
+                attributes: hashmap![],
+                children: vec![],
+            }),
+            XMLNode::Element(Element {
+                name: "Body".to_string(),
+                prefix: Some("soap".to_string()),
+                namespaces: Some(namespace.clone()),
+                namespace: Some(XMLNS_SOAPENV.to_string()),
+                attributes: hashmap![],
+                children: vec![XMLNode::Element(Element {
+                    name: name.to_string(),
+                    namespaces: None,
+                    children: arguments.into_iter().map(XMLNode::Element).collect(),
+                    prefix: None,
+                    namespace: None,
+                    attributes: hashmap! {},
+                })],
+            }),
+        ],
     }
 }
 
@@ -112,11 +119,14 @@ pub(crate) fn newest_bugs_request(amount: i32) -> xmltree::Element {
 }
 
 pub(crate) fn get_bug_log_request(bugid: i32) -> xmltree::Element {
+    let mut namespace = xmltree::Namespace::empty();
+    namespace.put("xsi", XMLNS_XSI);
+    namespace.put("xsd", XMLNS_XSD);
     build_request_envelope(
         "get_bug_log",
         vec![Element {
             name: "bugnumber".to_string(),
-            namespaces: None,
+            namespaces: Some(namespace.clone()),
             children: vec![XMLNode::Text(bugid.to_string())],
             prefix: None,
             namespace: None,
@@ -128,14 +138,10 @@ pub(crate) fn get_bug_log_request(bugid: i32) -> xmltree::Element {
 }
 
 #[test]
-fn test_newest_bufs_request_serialize() {
+fn test_newest_bugs_request_serialize() {
     let request = newest_bugs_request(10);
     assert_eq!(request.name, "Envelope");
     assert_eq!(request.namespace.as_deref(), Some(XMLNS_SOAPENV));
-    assert_eq!(
-        request.attributes.get("soapenv:encodingStyle"),
-        Some(&SOAP_ENCODING.to_string())
-    );
     assert_eq!(request.children.len(), 1);
     let body = request.children[0].as_element().unwrap();
     assert_eq!(body.name, "Body");
@@ -194,7 +200,7 @@ pub(crate) fn parse_newest_bugs_response(input: &str) -> Result<Vec<i32>, String
     match array_elem.attributes.get("arrayType") {
         None => return Err("soapenc:Array does not have soapenc:arrayType attribute".to_string()),
         Some(value) => {
-            if !regex_is_match!(r"xsd:int\[[0-9]+\]", value) {
+            if !regex_is_match!(r"xsd:int\[[0-9]+\]", value) && value != "xsd:anyType[0]" {
                 return Err(format!(
                     "soapenc:Array has incorrect soapenc:arrayType attribute: {}",
                     value
@@ -222,7 +228,7 @@ pub(crate) fn parse_newest_bugs_response(input: &str) -> Result<Vec<i32>, String
 
 #[test]
 fn test_parse_newest_bugs_response() {
-    let text = r###"<?xml version="1.0" encoding="UTF-8"?><soap:Envelope soap:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soap:Body><newest_bugsResponse xmlns="Debbugs/SOAP"><soapenc:Array soapenc:arrayType="xsd:int[10]" xsi:type="soapenc:Array"><item xsi:type="xsd:int">66320</item><item xsi:type="xsd:int">66321</item><item xsi:type="xsd:int">66322</item><item xsi:type="xsd:int">66323</item><item xsi:type="xsd:int">66324</item><item xsi:type="xsd:int">66325</item><item xsi:type="xsd:int">66326</item><item xsi:type="xsd:int">66327</item><item xsi:type="xsd:int">66328</item><item xsi:type="xsd:int">66329</item></soapenc:Array></newest_bugsResponse></soap:Body></soap:Envelope>"###;
+    let text = r###"<?xml version="1.0" encoding="UTF-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soap:Body><newest_bugsResponse xmlns="Debbugs/SOAP"><soapenc:Array soapenc:arrayType="xsd:int[10]" xsi:type="soapenc:Array"><item xsi:type="xsd:int">66320</item><item xsi:type="xsd:int">66321</item><item xsi:type="xsd:int">66322</item><item xsi:type="xsd:int">66323</item><item xsi:type="xsd:int">66324</item><item xsi:type="xsd:int">66325</item><item xsi:type="xsd:int">66326</item><item xsi:type="xsd:int">66327</item><item xsi:type="xsd:int">66328</item><item xsi:type="xsd:int">66329</item></soapenc:Array></newest_bugsResponse></soap:Body></soap:Envelope>"###;
     let integers = parse_newest_bugs_response(text).unwrap();
     assert_eq!(
         integers,
@@ -305,7 +311,7 @@ pub(crate) fn parse_get_bug_log_response(input: &str) -> Result<Vec<BugLog>, Str
     match array_elem.attributes.get("arrayType") {
         None => return Err("soapenc:Array does not have soapenc:arrayType attribute".to_string()),
         Some(value) => {
-            if !regex_is_match!(r"xsd:ur-type\[[0-9]+\]", value) {
+            if !regex_is_match!(r"xsd:ur-type\[[0-9]+\]", value) && value != "xsd:anyType[0]" {
                 return Err(format!(
                     "soapenc:Array has incorrect soapenc:arrayType attribute: {}",
                     value
@@ -330,4 +336,213 @@ pub(crate) fn parse_get_bug_log_response(input: &str) -> Result<Vec<BugLog>, Str
         }
     }
     Ok(ret)
+}
+
+trait ToArgXml {
+    fn to_arg_xml(&self, name: String) -> xmltree::Element;
+}
+
+impl ToArgXml for &str {
+    fn to_arg_xml(&self, name: String) -> xmltree::Element {
+        xmltree::Element {
+            prefix: None,
+            namespace: None,
+            namespaces: None,
+            name,
+            attributes: HashMap::new(),
+            children: vec![xmltree::XMLNode::Text(self.to_string())],
+        }
+    }
+}
+
+impl ToArgXml for &[&str] {
+    fn to_arg_xml(&self, name: String) -> xmltree::Element {
+        let mut namespace = xmltree::Namespace::empty();
+        namespace.put("xsi", XMLNS_XSI);
+        namespace.put("soapenc", XMLNS_SOAPENC);
+        namespace.put("xsd", XMLNS_XSD);
+        let mut children = Vec::new();
+        for s in self.iter() {
+            children.push(xmltree::Element {
+                prefix: None,
+                namespace: None,
+                namespaces: None,
+                name: "item".to_string(),
+                attributes: hashmap! {
+                    "xsi:type".to_string() => "xsd:string".to_string(),
+                },
+                children: vec![xmltree::XMLNode::Text(s.to_string())],
+            });
+        }
+        xmltree::Element {
+            prefix: None,
+            namespace: None,
+            namespaces: Some(namespace),
+            name,
+            attributes: hashmap! {
+                "xsi:type".to_string() => "soapenc:Array".to_string(),
+                "soapenc:arrayType".to_string() => "xsd:string[]".to_string(),
+            },
+            children: children
+                .into_iter()
+                .map(xmltree::XMLNode::Element)
+                .collect(),
+        }
+    }
+}
+
+impl ToArgXml for &[BugId] {
+    fn to_arg_xml(&self, name: String) -> xmltree::Element {
+        let mut namespace = xmltree::Namespace::empty();
+        namespace.put("xsi", XMLNS_XSI);
+        namespace.put("soapenc", XMLNS_SOAPENC);
+        namespace.put("xsd", XMLNS_XSD);
+        let mut children = Vec::new();
+        for bug_id in self.iter() {
+            children.push(xmltree::Element {
+                prefix: None,
+                namespace: None,
+                namespaces: None,
+                name: "item".to_string(),
+                attributes: hashmap! {
+                    "xsi:type".to_string() => "xsd:int".to_string(),
+                },
+                children: vec![xmltree::XMLNode::Text(bug_id.to_string())],
+            });
+        }
+        xmltree::Element {
+            prefix: None,
+            namespace: None,
+            namespaces: Some(namespace),
+            name,
+            attributes: hashmap! {
+                "xsi:type".to_string() => "soapenc:Array".to_string(),
+                "soapenc:arrayType".to_string() => format!("xsd:int[{}]", self.len()),
+            },
+            children: children
+                .into_iter()
+                .map(xmltree::XMLNode::Element)
+                .collect(),
+        }
+    }
+}
+
+fn add_arg_xml<T: ToArgXml>(params: &mut Vec<xmltree::Element>, name: &str, arg: T) {
+    params.push(xmltree::Element {
+        prefix: None,
+        namespace: None,
+        namespaces: None,
+        name: format!("arg{}", params.len()),
+        attributes: HashMap::new(),
+        children: vec![xmltree::XMLNode::Text(name.to_string())],
+    });
+    params.push(arg.to_arg_xml(format!("arg{}", params.len())));
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct SearchQuery<'a> {
+    pub package: Option<&'a str>,
+    pub bug_ids: Option<&'a [BugId]>,
+    pub submitter: Option<&'a str>,
+    pub maintainer: Option<&'a str>,
+    pub src: Option<&'a str>,
+    pub severity: Option<&'a str>,
+    pub status: Option<crate::BugStatus>,
+    pub owner: Option<&'a str>,
+    pub correspondent: Option<&'a str>,
+    pub archive: Option<crate::Archived>,
+    pub tag: Option<&'a [&'a str]>,
+}
+
+pub(crate) fn get_bugs_request(query: &SearchQuery) -> xmltree::Element {
+    let mut params = Vec::new();
+
+    if let Some(package) = query.package {
+        add_arg_xml(&mut params, "package", package);
+    }
+
+    if let Some(bug_ids) = query.bug_ids {
+        add_arg_xml(&mut params, "bugs", bug_ids);
+    }
+
+    if let Some(submitter) = query.submitter {
+        add_arg_xml(&mut params, "submitter", submitter);
+    }
+
+    if let Some(maintainer) = query.maintainer {
+        add_arg_xml(&mut params, "maint", maintainer);
+    }
+
+    if let Some(src) = query.src {
+        add_arg_xml(&mut params, "src", src);
+    }
+
+    if let Some(severity) = query.severity {
+        add_arg_xml(&mut params, "severity", severity);
+    }
+
+    if let Some(status) = query.status {
+        add_arg_xml(&mut params, "status", status.to_string().as_str());
+    }
+
+    if let Some(owner) = query.owner {
+        add_arg_xml(&mut params, "owner", owner);
+    }
+
+    if let Some(correspondent) = query.correspondent {
+        add_arg_xml(&mut params, "correspondent", correspondent);
+    }
+
+    if let Some(archive) = query.archive {
+        add_arg_xml(&mut params, "archive", archive.to_string().as_str());
+    }
+
+    if let Some(tag) = query.tag {
+        add_arg_xml(&mut params, "tag", tag);
+    }
+
+    build_request_envelope("get_bugs", params)
+}
+
+pub(crate) fn parse_get_bugs_response(input: &str) -> Result<Vec<crate::BugId>, String> {
+    let response_elem = parse_response_envelope(input, "get_bugs")?;
+
+    let array_elem = response_elem
+        .get_child("Array")
+        .ok_or("soapenc:Array not found")?;
+
+    if array_elem.namespace.as_deref() != Some(XMLNS_SOAPENC) {
+        return Err(format!(
+            "Namespace for soapenc:Array is incorrect: {:?}",
+            array_elem.namespace
+        ));
+    }
+
+    match array_elem.attributes.get("arrayType") {
+        None => return Err("soapenc:Array does not have soapenc:arrayType attribute".to_string()),
+        Some(value) => {
+            if !regex_is_match!(r"xsd:int\[[0-9]+\]", value) && value != "xsd:anyType[0]" {
+                return Err(format!(
+                    "soapenc:Array has incorrect soapenc:arrayType attribute: {}",
+                    value
+                ));
+            }
+        }
+    }
+
+    // Extract the integers from the item elements
+    let mut integers = Vec::new();
+    for item in array_elem.children.iter() {
+        if let xmltree::XMLNode::Element(e) = item {
+            if e.name == "item" {
+                if let Some(text) = e.get_text() {
+                    if let Ok(num) = text.parse() {
+                        integers.push(num);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(integers)
 }

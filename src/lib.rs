@@ -11,6 +11,8 @@ mod soap;
 use log::debug;
 pub use soap::{BugLog, BugReport};
 
+const DEFAULT_URL: &str = "https://bugs.debian.org/cgi-bin/soap.cgi";
+
 #[derive(Debug)]
 pub enum Error {
     SoapError(String),
@@ -22,6 +24,67 @@ pub enum Error {
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
         Error::ReqwestError(err)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BugStatus {
+    Done,
+    Forwarded,
+    Open,
+}
+
+impl std::str::FromStr for BugStatus {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "done" => Ok(BugStatus::Done),
+            "forwarded" => Ok(BugStatus::Forwarded),
+            "open" => Ok(BugStatus::Open),
+            _ => Err(Error::SoapError(format!("Unknown status: {}", s))),
+        }
+    }
+}
+
+impl ToString for BugStatus {
+    fn to_string(&self) -> String {
+        match self {
+            BugStatus::Done => "done".to_string(),
+            BugStatus::Forwarded => "forwarded".to_string(),
+            BugStatus::Open => "open".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
+pub enum Archived {
+    Archived,
+    #[default]
+    NotArchived,
+    Both,
+}
+
+impl std::str::FromStr for Archived {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "1" | "archived" => Ok(Archived::Archived),
+            "0" | "unarchived" => Ok(Archived::NotArchived),
+            "both" => Ok(Archived::Both),
+            _ => Err(Error::SoapError(format!("Unknown archived: {}", s))),
+        }
+    }
+}
+
+impl ToString for Archived {
+    fn to_string(&self) -> String {
+        match self {
+            Archived::Archived => "1".to_string(),
+            Archived::NotArchived => "0".to_string(),
+            Archived::Both => "both".to_string(),
+        }
     }
 }
 
@@ -40,67 +103,13 @@ impl std::error::Error for Error {}
 
 pub type SoapResponse = Result<(reqwest::StatusCode, String), Error>;
 
-impl Debbugs {
-    async fn send_soap_request(&self, request: &xmltree::Element, action: &str) -> SoapResponse {
-        let mut body = Vec::new();
-        request.write(&mut body).expect("failed to generate xml");
-        debug!("SOAP Request: {}", String::from_utf8_lossy(body.as_slice()));
-        let req = self
-            .client
-            .post(&self.url)
-            .body(body)
-            .header("Content-Type", "text/xml")
-            .header("Soapaction", action);
-        let res = req.send().await?;
-        let status = res.status();
-        if status.is_client_error() || status.is_server_error() {
-            let txt = res.text().await.unwrap();
-            debug!("SOAP Response: {}", txt);
-            let fault = soap::parse_fault(&txt).map_err(Error::XmlError)?;
-            return Err(Error::Fault(fault));
-        }
-        debug!("SOAP Status: {}", status);
-        let txt = res.text().await.unwrap_or_default();
-        debug!("SOAP Response: {}", txt);
-        Ok((status, txt))
-    }
-}
+type BugId = i32;
 
-impl Default for Debbugs {
-    fn default() -> Self {
-        Self::new("https://debbugs.gnu.org/cgi/soap.cgi")
-    }
-}
-
-impl Debbugs {
-    pub fn new(url: &str) -> Self {
-        Debbugs {
-            client: reqwest::Client::new(),
-            url: url.to_string(),
-        }
-    }
-}
-
-pub struct Debbugs {
-    client: reqwest::Client,
-    url: String,
-}
-
-impl Debbugs {
-    pub async fn newest_bugs(&self, amount: i32) -> Result<Vec<i32>, Error> {
-        let request = soap::newest_bugs_request(amount);
-        let (_status, response) = self.send_soap_request(&request, "Debbugs/SOAP").await?;
-
-        soap::parse_newest_bugs_response(&response).map_err(Error::XmlError)
-    }
-
-    pub async fn get_bug_log(&self, bug_id: i32) -> Result<Vec<BugLog>, Error> {
-        let request = soap::get_bug_log_request(bug_id);
-        let (_status, response) = self.send_soap_request(&request, "Debbugs/SOAP").await?;
-
-        soap::parse_get_bug_log_response(&response).map_err(Error::XmlError)
-    }
-}
+pub use soap::SearchQuery;
 
 #[cfg(feature = "blocking")]
 pub mod blocking;
+
+mod r#async;
+
+pub use r#async::Debbugs;
