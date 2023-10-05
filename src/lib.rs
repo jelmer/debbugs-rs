@@ -1,14 +1,13 @@
 //! Rust client interface for the Debian Bug Tracking System (Debbugs)
 //!
 //! # Examples
-//! ```rust
+//! ```no_run
 //! use debbugs::blocking::Debbugs;
 //! let debbugs = Debbugs::default();
 //! println!("{:?}", debbugs.newest_bugs(10).unwrap());
 //!```
 //!
 mod soap;
-use log::debug;
 pub use soap::{BugLog, BugReport};
 
 const DEFAULT_URL: &str = "https://bugs.debian.org/cgi-bin/soap.cgi";
