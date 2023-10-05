@@ -12,7 +12,7 @@ required-features = [ "tokio",]
 
 [package]
 name = "debbugs"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = [ "Jelmer Vernooĳ <jelmer@jelmer.uk>",]
 repository = "https://github.com/jelmer/debbugs-rs"
