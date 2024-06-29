@@ -26,12 +26,12 @@ license = "Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lazy-regex = ">=2.5"
-log = "0.4.20"
-maplit = "1.0.2"
-reqwest = "0.11"
-xmltree = "0.10.3"
-debversion = "0.2.2"
+lazy-regex = ">=2"
+log = ">=0.4"
+maplit = "1"
+reqwest = ">=0.11"
+xmltree = "0.10"
+debversion = "0.4"
 
 [features]
 blocking = [ "reqwest/blocking",]
@@ -40,11 +40,11 @@ tokio = [ "dep:tokio",]
 mailparse = [ "dep:mailparse",]
 
 [dependencies.mailparse]
-version = "0.14.0"
+version = "0.15"
 optional = true
 
 [dependencies.env_logger]
-version = "0.10.0"
+version = ">=0.10.0"
 optional = true
 
 [dependencies.tokio]
