@@ -30,7 +30,7 @@ lazy-regex = ">=2"
 log = ">=0.4"
 maplit = "1"
 reqwest = ">=0.11"
-xmltree = "0.10"
+xmltree = "0.11"
 debversion = "0.4"
 
 [features]
