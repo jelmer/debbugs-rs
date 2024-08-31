@@ -20,14 +20,13 @@ required-features = [ "tokio",]
 
 [package]
 name = "debbugs"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = [ "Jelmer Vernooĳ <jelmer@jelmer.uk>",]
 repository = "https://github.com/jelmer/debbugs-rs"
 description = "Debian Bugtracking System API client"
 readme = "README.md"
 license = "Apache-2.0"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 lazy-regex = ">=2"
