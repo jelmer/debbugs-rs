@@ -7,6 +7,8 @@
 //! println!("{:?}", debbugs.newest_bugs(10).unwrap());
 //!```
 //!
+//! See https://wiki.debian.org/DebbugsSoapInterface for more information on the Debbugs SOAP
+//! interface.
 mod soap;
 pub use soap::{BugLog, BugReport};
 
@@ -60,6 +62,7 @@ impl std::fmt::Display for BugStatus {
 pub enum Pending {
     Pending,
     PendingFixed,
+    Fixed,
     Done,
     Forwarded,
 }
@@ -71,6 +74,7 @@ impl std::str::FromStr for Pending {
         match s {
             "pending" => Ok(Pending::Pending),
             "pending-fixed" => Ok(Pending::PendingFixed),
+            "fixed" => Ok(Pending::Fixed),
             "done" => Ok(Pending::Done),
             "forwarded" => Ok(Pending::Forwarded),
             _ => Err(Error::SoapError(format!("Unknown pending: {}", s))),
@@ -85,6 +89,7 @@ impl std::fmt::Display for Pending {
             Pending::PendingFixed => f.write_str("pending-fixed"),
             Pending::Done => f.write_str("done"),
             Pending::Forwarded => f.write_str("forwarded"),
+            Pending::Fixed => f.write_str("fixed"),
         }
     }
 }
@@ -135,6 +140,7 @@ impl std::error::Error for Error {}
 
 pub type SoapResponse = Result<(reqwest::StatusCode, String), Error>;
 
+/// A bug ID
 type BugId = i32;
 
 pub use soap::SearchQuery;
