@@ -33,6 +33,14 @@ impl std::fmt::Display for Fault {
     }
 }
 
+fn parse_bool(s: &str) -> Result<bool, String> {
+    match s {
+        "1" => Ok(true),
+        "0" => Ok(false),
+        _ => Err(format!("Invalid boolean value: {}", s)),
+    }
+}
+
 pub(crate) fn parse_fault(input: &str) -> Result<Fault, String> {
     // Parse the input XML string into an Element
     let root = Element::parse(input.as_bytes()).map_err(|e| e.to_string())?;
@@ -243,34 +251,45 @@ fn test_parse_newest_bugs_response() {
 
 #[derive(Debug)]
 pub struct BugReport {
-    pub pending: Option<crate::BugStatus>,
+    pub pending: Option<crate::Pending>,
     pub msgid: Option<String>,
     pub owner: Option<String>,
+    #[deprecated = "Use tags instead"]
     pub keywords: Option<String>,
     pub affects: Option<String>,
-    pub unarchived: Option<String>,
+    /// Has the bug been unrarchived and can be archived again
+    pub unarchived: Option<bool>,
     pub forwarded: Option<String>,
     pub summary: Option<String>,
-    pub bug_num: Option<i32>,
-    pub archived: Option<crate::Archived>,
+    /// The bugnumber
+    pub bug_num: Option<BugId>,
+    /// The bug is archived or not
+    pub archived: Option<bool>,
     pub found_versions: Option<Vec<Version>>,
     pub done: Option<String>,
+    /// Severity of the bugreport
     pub severity: Option<String>,
+    /// Package of the bugreport
     pub package: Option<String>,
     pub fixed_versions: Option<Vec<(Option<String>, Version)>>,
     pub originator: Option<String>,
     pub blocks: Option<String>,
+    #[deprecated(note = "empty for now")]
     pub found_date: Option<Vec<u32>>,
     pub outlook: Option<String>,
+    #[deprecated(note = "use bug_num")]
     pub id: Option<BugId>,
     pub found: bool,
     pub fixed: bool,
     pub last_modified: Option<u32>,
     pub tags: Option<String>,
+    /// Subject/Title of the bugreport
     pub subject: Option<String>,
     pub location: Option<String>,
-    pub mergedwith: Option<String>,
+    /// The bugs this bug was merged with
+    pub mergedwith: Option<Vec<BugId>>,
     pub blockedby: Option<String>,
+    #[deprecated(note = "empty for now")]
     pub fixed_date: Option<Vec<u32>>,
     pub log_modified: Option<u32>,
     pub source: Option<String>,
@@ -300,6 +319,8 @@ fn parse_version(input: &str) -> (Option<String>, Version) {
     }
 }
 
+// Hide the deprecated warnings, since we intentionally still populate the deprecated fields
+#[allow(deprecated)]
 impl From<&xmltree::Element> for BugReport {
     fn from(item: &xmltree::Element) -> Self {
         Self {
@@ -325,7 +346,8 @@ impl From<&xmltree::Element> for BugReport {
             unarchived: item
                 .get_child("unarchived")
                 .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
+                .as_ref()
+                .and_then(|s| parse_bool(s).ok()),
             blocks: item
                 .get_child("blocks")
                 .and_then(|e| e.get_text())
@@ -359,7 +381,8 @@ impl From<&xmltree::Element> for BugReport {
                 .map(|s| s.to_string()),
             done: item
                 .get_child("done")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
+                .and_then(|e| e.get_text())
+                .map(|t| t.to_string()),
             forwarded: item
                 .get_child("forwarded")
                 .and_then(|e| e.get_text())
@@ -376,7 +399,9 @@ impl From<&xmltree::Element> for BugReport {
                 .map(|e| e.get_text().unwrap().parse().unwrap()),
             archived: item
                 .get_child("archived")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
+                .and_then(|e| e.get_text())
+                .as_ref()
+                .map(|t| parse_bool(t).unwrap()),
             found_versions: item.get_child("found_versions").map(|f| {
                 f.children
                     .iter()
@@ -384,7 +409,7 @@ impl From<&xmltree::Element> for BugReport {
                         c.as_element()
                             .and_then(|c| if c.name == "item" { Some(c) } else { None })
                     })
-                    .map(|d| d.get_text().unwrap().parse::<Version>().unwrap())
+                    .filter_map(|d| d.get_text().and_then(|v| v.parse::<Version>().ok()))
                     .collect::<Vec<_>>()
             }),
             found: item.get_child("found").is_some(),
@@ -422,7 +447,7 @@ impl From<&xmltree::Element> for BugReport {
             mergedwith: item
                 .get_child("mergedwith")
                 .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
+                .map(|s| s.split_whitespace().map(|i| i.parse().unwrap()).collect()),
             severity: item
                 .get_child("severity")
                 .and_then(|e| e.get_text())

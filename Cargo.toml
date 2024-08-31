@@ -14,6 +14,10 @@ required-features = [ "tokio",]
 name = "get_usertag"
 required-features = [ "tokio",]
 
+[[example]]
+name = "wnpp_bugs"
+required-features = [ "tokio",]
+
 [package]
 name = "debbugs"
 version = "0.1.3"

@@ -46,12 +46,45 @@ impl std::str::FromStr for BugStatus {
     }
 }
 
-impl ToString for BugStatus {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for BugStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BugStatus::Done => "done".to_string(),
-            BugStatus::Forwarded => "forwarded".to_string(),
-            BugStatus::Open => "open".to_string(),
+            BugStatus::Done => f.write_str("done"),
+            BugStatus::Forwarded => f.write_str("forwarded"),
+            BugStatus::Open => f.write_str("open"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Pending {
+    Pending,
+    PendingFixed,
+    Done,
+    Forwarded,
+}
+
+impl std::str::FromStr for Pending {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pending" => Ok(Pending::Pending),
+            "pending-fixed" => Ok(Pending::PendingFixed),
+            "done" => Ok(Pending::Done),
+            "forwarded" => Ok(Pending::Forwarded),
+            _ => Err(Error::SoapError(format!("Unknown pending: {}", s))),
+        }
+    }
+}
+
+impl std::fmt::Display for Pending {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Pending::Pending => f.write_str("pending"),
+            Pending::PendingFixed => f.write_str("pending-fixed"),
+            Pending::Done => f.write_str("done"),
+            Pending::Forwarded => f.write_str("forwarded"),
         }
     }
 }
@@ -77,12 +110,12 @@ impl std::str::FromStr for Archived {
     }
 }
 
-impl ToString for Archived {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Archived {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Archived::Archived => "1".to_string(),
-            Archived::NotArchived => "0".to_string(),
-            Archived::Both => "both".to_string(),
+            Archived::Archived => f.write_str("archived"),
+            Archived::NotArchived => f.write_str("unarchived"),
+            Archived::Both => f.write_str("both"),
         }
     }
 }

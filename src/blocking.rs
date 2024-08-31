@@ -42,10 +42,13 @@ impl Debbugs {
         }
     }
 }
+
+/// Blocking client for debbugs
 pub struct Debbugs {
     client: reqwest::blocking::Client,
     url: String,
 }
+
 impl Debbugs {
     pub fn newest_bugs(&self, amount: i32) -> Result<Vec<BugId>, Error> {
         let request = crate::soap::newest_bugs_request(amount);
