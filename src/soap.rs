@@ -193,7 +193,7 @@ fn parse_response_envelope(input: &str, name: &str) -> Result<xmltree::Element, 
     body_elem
         .get_child(elem_name.as_str())
         .ok_or(format!("{} not found", elem_name))
-        .map(|e| e.clone())
+        .cloned()
 }
 
 pub(crate) fn parse_newest_bugs_response(input: &str) -> Result<Vec<i32>, String> {
@@ -271,7 +271,7 @@ pub struct BugReport {
     pub severity: Option<String>,
     /// Package of the bugreport
     pub package: Option<String>,
-    pub fixed_versions: Option<Vec<(Option<String>, Version)>>,
+    pub fixed_versions: Option<Vec<(Option<String>, Option<Version>)>>,
     pub originator: Option<String>,
     pub blocks: Option<String>,
     #[deprecated(note = "empty for now")]
@@ -312,10 +312,10 @@ impl std::fmt::Display for BugReport {
     }
 }
 
-fn parse_version(input: &str) -> (Option<String>, Version) {
+fn parse_version(input: &str) -> (Option<String>, Option<Version>) {
     match input.split_once('/') {
-        None => (None, input.parse().unwrap()),
-        Some((package, version)) => (Some(package.to_string()), version.parse().unwrap()),
+        None => (None, input.parse().ok()),
+        Some((package, version)) => (Some(package.to_string()), version.parse().ok()),
     }
 }
 
@@ -476,7 +476,7 @@ impl From<&xmltree::Element> for BugReport {
 #[derive(Debug, Clone)]
 pub struct BugLog {
     pub header: String,
-    pub msgnum: usize,
+    pub msgnum: BugId,
     pub body: String,
 }
 
