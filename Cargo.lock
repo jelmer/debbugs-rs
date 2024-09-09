@@ -152,6 +152,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono"
+version = "0.4.38"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -181,7 +190,7 @@ checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
 
 [[package]]
 name = "debbugs"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "debversion",
  "env_logger",
@@ -196,10 +205,11 @@ dependencies = [
 
 [[package]]
 name = "debversion"
-version = "0.4.1"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b6c96844ac16a110ee3ea355b7e511ffe0221242caebb2cc5e1bbfd285744cf"
+checksum = "af9a77dd8b295674d42a18cbde8f51c7fc5609523faccda69b7b612f4dd04a4a"
 dependencies = [
+ "chrono",
  "lazy-regex",
 ]
 
@@ -667,6 +677,15 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.2.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
