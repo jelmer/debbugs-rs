@@ -1,5 +1,5 @@
-use crate::soap;
-use crate::{BugId, BugLog, Error, SearchQuery, SoapResponse, DEFAULT_URL};
+use create::soap;
+use create::{BugId, BugLog, Error, SearchQuery, SoapResponse, DEFAULT_URL};
 use log::debug;
 
 impl Debbugs {
@@ -73,11 +73,11 @@ impl Debbugs {
     pub async fn get_status(
         &self,
         bug_ids: &[BugId],
-    ) -> Result<std::collections::HashMap<BugId, crate::soap::BugReport>, Error> {
-        let request = crate::soap::get_status_request(bug_ids);
+    ) -> Result<std::collections::HashMap<BugId, create::soap::BugReport>, Error> {
+        let request = create::soap::get_status_request(bug_ids);
         let (_status, response) = self.send_soap_request(&request, "get_status").await?;
 
-        crate::soap::parse_get_status_response(&response).map_err(Error::XmlError)
+        create::soap::parse_get_status_response(&response).map_err(Error::XmlError)
     }
 
     pub async fn get_usertag(
@@ -85,9 +85,9 @@ impl Debbugs {
         email: &str,
         usertags: &[&str],
     ) -> Result<std::collections::HashMap<String, Vec<BugId>>, Error> {
-        let request = crate::soap::get_usertag_request(email, usertags);
+        let request = create::soap::get_usertag_request(email, usertags);
         let (_status, response) = self.send_soap_request(&request, "get_usertag").await?;
 
-        crate::soap::parse_get_usertag_response(&response).map_err(Error::XmlError)
+        create::soap::parse_get_usertag_response(&response).map_err(Error::XmlError)
     }
 }

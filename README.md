@@ -1,7 +1,7 @@
 Client for the Debian bug tracking system
 =========================================
 
-This crate hosts a simple rust wrapper around the [SOAP API for the Debian bug
+This create hosts a simple rust wrapper around the [SOAP API for the Debian bug
 tracking system](https://wiki.debian.org/DebbugsSoapInterface).
 
 Example:

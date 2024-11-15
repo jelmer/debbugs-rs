@@ -2,7 +2,7 @@ use debversion::Version;
 use lazy_regex::regex_is_match;
 use maplit::hashmap;
 
-use crate::BugId;
+use create::BugId;
 
 use std::collections::HashMap;
 use xmltree::{Element, XMLNode};
@@ -41,7 +41,7 @@ fn parse_bool(s: &str) -> Result<bool, String> {
     }
 }
 
-pub(crate) fn parse_fault(input: &str) -> Result<Fault, String> {
+pub(create) fn parse_fault(input: &str) -> Result<Fault, String> {
     // Parse the input XML string into an Element
     let root = Element::parse(input.as_bytes()).map_err(|e| e.to_string())?;
 
@@ -115,7 +115,7 @@ fn build_request_envelope(name: &str, arguments: Vec<Element>) -> xmltree::Eleme
     }
 }
 
-pub(crate) fn newest_bugs_request(amount: i32) -> xmltree::Element {
+pub(create) fn newest_bugs_request(amount: i32) -> xmltree::Element {
     build_request_envelope(
         "newest_bugs",
         vec![Element {
@@ -129,7 +129,7 @@ pub(crate) fn newest_bugs_request(amount: i32) -> xmltree::Element {
     )
 }
 
-pub(crate) fn get_bug_log_request(bugid: i32) -> xmltree::Element {
+pub(create) fn get_bug_log_request(bugid: i32) -> xmltree::Element {
     let mut namespace = xmltree::Namespace::empty();
     namespace.put("xsi", XMLNS_XSI);
     namespace.put("xsd", XMLNS_XSD);
@@ -196,7 +196,7 @@ fn parse_response_envelope(input: &str, name: &str) -> Result<xmltree::Element, 
         .cloned()
 }
 
-pub(crate) fn parse_newest_bugs_response(input: &str) -> Result<Vec<i32>, String> {
+pub(create) fn parse_newest_bugs_response(input: &str) -> Result<Vec<i32>, String> {
     let response_elem = parse_response_envelope(input, "newest_bugs")?;
 
     let array_elem = response_elem
@@ -251,7 +251,7 @@ fn test_parse_newest_bugs_response() {
 
 #[derive(Debug)]
 pub struct BugReport {
-    pub pending: Option<crate::Pending>,
+    pub pending: Option<create::Pending>,
     pub msgid: Option<String>,
     pub owner: Option<String>,
     #[deprecated = "Use tags instead"]
@@ -522,7 +522,7 @@ fn parse_buglog(item: &xmltree::Element) -> Result<BugLog, String> {
     })
 }
 
-pub(crate) fn parse_get_bug_log_response(input: &str) -> Result<Vec<BugLog>, String> {
+pub(create) fn parse_get_bug_log_response(input: &str) -> Result<Vec<BugLog>, String> {
     let response_elem = parse_response_envelope(input, "get_bug_log")?;
 
     let array_elem = response_elem
@@ -667,14 +667,14 @@ pub struct SearchQuery<'a> {
     pub maintainer: Option<&'a str>,
     pub src: Option<&'a str>,
     pub severity: Option<&'a str>,
-    pub status: Option<crate::BugStatus>,
+    pub status: Option<create::BugStatus>,
     pub owner: Option<&'a str>,
     pub correspondent: Option<&'a str>,
-    pub archive: Option<crate::Archived>,
+    pub archive: Option<create::Archived>,
     pub tag: Option<&'a [&'a str]>,
 }
 
-pub(crate) fn get_bugs_request(query: &SearchQuery) -> xmltree::Element {
+pub(create) fn get_bugs_request(query: &SearchQuery) -> xmltree::Element {
     let mut params = Vec::new();
 
     if let Some(package) = query.package {
@@ -735,7 +735,7 @@ pub(crate) fn get_bugs_request(query: &SearchQuery) -> xmltree::Element {
     build_request_envelope("get_bugs", params)
 }
 
-pub(crate) fn parse_get_bugs_response(input: &str) -> Result<Vec<crate::BugId>, String> {
+pub(create) fn parse_get_bugs_response(input: &str) -> Result<Vec<create::BugId>, String> {
     let response_elem = parse_response_envelope(input, "get_bugs")?;
 
     let array_elem = response_elem
@@ -778,13 +778,13 @@ pub(crate) fn parse_get_bugs_response(input: &str) -> Result<Vec<crate::BugId>, 
     Ok(integers)
 }
 
-pub(crate) fn get_status_request(bug_ids: &[BugId]) -> xmltree::Element {
+pub(create) fn get_status_request(bug_ids: &[BugId]) -> xmltree::Element {
     let mut params = Vec::new();
     add_arg_xml(&mut params, bug_ids);
     build_request_envelope("get_status", params)
 }
 
-pub(crate) fn parse_get_status_response(input: &str) -> Result<HashMap<BugId, BugReport>, String> {
+pub(create) fn parse_get_status_response(input: &str) -> Result<HashMap<BugId, BugReport>, String> {
     let response_elem = parse_response_envelope(input, "get_status")?;
 
     if response_elem.namespace.as_deref() != Some(XMLNS_DEBBUGS) {
@@ -827,7 +827,7 @@ pub(crate) fn parse_get_status_response(input: &str) -> Result<HashMap<BugId, Bu
     Ok(ret)
 }
 
-pub(crate) fn get_usertag_request(email: &str, tags: &[&str]) -> xmltree::Element {
+pub(create) fn get_usertag_request(email: &str, tags: &[&str]) -> xmltree::Element {
     let mut params = Vec::new();
     add_arg_xml(&mut params, email);
     for tag in tags {
@@ -836,9 +836,9 @@ pub(crate) fn get_usertag_request(email: &str, tags: &[&str]) -> xmltree::Elemen
     build_request_envelope("get_usertag", params)
 }
 
-pub(crate) fn parse_get_usertag_response(
+pub(create) fn parse_get_usertag_response(
     input: &str,
-) -> Result<HashMap<String, Vec<crate::BugId>>, String> {
+) -> Result<HashMap<String, Vec<create::BugId>>, String> {
     let response_elem = parse_response_envelope(input, "get_usertag")?;
 
     let container = response_elem

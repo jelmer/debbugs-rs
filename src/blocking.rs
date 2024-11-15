@@ -1,6 +1,6 @@
 use log::debug;
 
-use crate::{BugId, Error, SoapResponse};
+use create::{BugId, Error, SoapResponse};
 
 impl Debbugs {
     fn send_soap_request(&self, request: &xmltree::Element, action: &str) -> SoapResponse {
@@ -18,7 +18,7 @@ impl Debbugs {
         if status.is_client_error() || status.is_server_error() {
             let txt = res.text().unwrap();
             debug!("SOAP Response: {}", txt);
-            let fault = crate::soap::parse_fault(&txt).map_err(Error::XmlError)?;
+            let fault = create::soap::parse_fault(&txt).map_err(Error::XmlError)?;
             return Err(Error::Fault(fault));
         }
         debug!("SOAP Status: {}", status);
@@ -30,7 +30,7 @@ impl Debbugs {
 
 impl Default for Debbugs {
     fn default() -> Self {
-        Self::new(crate::DEFAULT_URL)
+        Self::new(create::DEFAULT_URL)
     }
 }
 
@@ -51,34 +51,34 @@ pub struct Debbugs {
 
 impl Debbugs {
     pub fn newest_bugs(&self, amount: i32) -> Result<Vec<BugId>, Error> {
-        let request = crate::soap::newest_bugs_request(amount);
+        let request = create::soap::newest_bugs_request(amount);
         let (_status, response) = self.send_soap_request(&request, "newest_bugs")?;
 
-        crate::soap::parse_newest_bugs_response(&response).map_err(Error::XmlError)
+        create::soap::parse_newest_bugs_response(&response).map_err(Error::XmlError)
     }
 
-    pub fn get_bug_log(&self, bug_id: BugId) -> Result<Vec<crate::soap::BugLog>, Error> {
-        let request = crate::soap::get_bug_log_request(bug_id);
+    pub fn get_bug_log(&self, bug_id: BugId) -> Result<Vec<create::soap::BugLog>, Error> {
+        let request = create::soap::get_bug_log_request(bug_id);
         let (_status, response) = self.send_soap_request(&request, "get_bug_log")?;
 
-        crate::soap::parse_get_bug_log_response(&response).map_err(Error::XmlError)
+        create::soap::parse_get_bug_log_response(&response).map_err(Error::XmlError)
     }
 
-    pub fn get_bugs(&self, query: &crate::SearchQuery) -> Result<Vec<BugId>, Error> {
-        let request = crate::soap::get_bugs_request(query);
+    pub fn get_bugs(&self, query: &create::SearchQuery) -> Result<Vec<BugId>, Error> {
+        let request = create::soap::get_bugs_request(query);
         let (_status, response) = self.send_soap_request(&request, "get_bugs")?;
 
-        crate::soap::parse_get_bugs_response(&response).map_err(Error::XmlError)
+        create::soap::parse_get_bugs_response(&response).map_err(Error::XmlError)
     }
 
     pub fn get_status(
         &self,
         bug_ids: &[BugId],
-    ) -> Result<std::collections::HashMap<BugId, crate::soap::BugReport>, Error> {
-        let request = crate::soap::get_status_request(bug_ids);
+    ) -> Result<std::collections::HashMap<BugId, create::soap::BugReport>, Error> {
+        let request = create::soap::get_status_request(bug_ids);
         let (_status, response) = self.send_soap_request(&request, "get_status")?;
 
-        crate::soap::parse_get_status_response(&response).map_err(Error::XmlError)
+        create::soap::parse_get_status_response(&response).map_err(Error::XmlError)
     }
 
     pub fn get_usertag(
@@ -86,9 +86,9 @@ impl Debbugs {
         email: &str,
         usertags: &[&str],
     ) -> Result<std::collections::HashMap<String, Vec<BugId>>, Error> {
-        let request = crate::soap::get_usertag_request(email, usertags);
+        let request = create::soap::get_usertag_request(email, usertags);
         let (_status, response) = self.send_soap_request(&request, "get_usertag")?;
 
-        crate::soap::parse_get_usertag_response(&response).map_err(Error::XmlError)
+        create::soap::parse_get_usertag_response(&response).map_err(Error::XmlError)
     }
 }
