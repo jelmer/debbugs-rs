@@ -35,10 +35,10 @@ impl Default for Debbugs {
 }
 
 impl Debbugs {
-    pub fn new(url: &str) -> Self {
+    pub fn new<S: Into<String>>(url: S) -> Self {
         Debbugs {
             client: reqwest::Client::new(),
-            url: url.to_string(),
+            url: url.into(),
         }
     }
 }
