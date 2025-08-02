@@ -68,10 +68,18 @@ pub(crate) fn parse_fault(input: &str) -> Result<Fault, String> {
     let detail = fault.get_child("detail");
 
     Ok(Fault {
-        faultcode: faultcode.get_text().unwrap().to_string(),
-        faultstring: faultstring.get_text().unwrap().to_string(),
-        faultactor: faultactor.and_then(|s| s.get_text()).map(|s| s.to_string()),
-        detail: detail.and_then(|s| s.get_text()).map(|s| s.to_string()),
+        faultcode: faultcode
+            .get_text()
+            .ok_or("faultcode has no text")?
+            .into_owned(),
+        faultstring: faultstring
+            .get_text()
+            .ok_or("faultstring has no text")?
+            .into_owned(),
+        faultactor: faultactor
+            .and_then(|s| s.get_text())
+            .map(|s| s.into_owned()),
+        detail: detail.and_then(|s| s.get_text()).map(|s| s.into_owned()),
     })
 }
 
@@ -323,152 +331,85 @@ fn parse_version(input: &str) -> (Option<String>, Option<Version>) {
 #[allow(deprecated)]
 impl From<&xmltree::Element> for BugReport {
     fn from(item: &xmltree::Element) -> Self {
+        // Helper function to get text and convert to owned String
+        fn get_text_owned(element: Option<&xmltree::Element>) -> Option<String> {
+            element.and_then(|e| e.get_text()).map(|s| s.into_owned())
+        }
+
+        // Helper function to parse a child element's text content
+        fn parse_child<T: std::str::FromStr>(
+            item: &xmltree::Element,
+            child_name: &str,
+        ) -> Option<T> {
+            item.get_child(child_name)
+                .and_then(|e| e.get_text())
+                .and_then(|text| text.parse().ok())
+        }
+
+        // Helper function to parse items from a list element
+        fn parse_list_items<T, F>(element: Option<&xmltree::Element>, parser: F) -> Option<Vec<T>>
+        where
+            F: Fn(&str) -> Option<T>,
+        {
+            element.map(|e| {
+                e.children
+                    .iter()
+                    .filter_map(|c| c.as_element())
+                    .filter(|c| c.name == "item")
+                    .filter_map(|c| c.get_text().and_then(|text| parser(text.as_ref())))
+                    .collect()
+            })
+        }
+
         Self {
-            pending: item
-                .get_child("pending")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
-            msgid: item
-                .get_child("msgid")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            owner: item
-                .get_child("owner")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            keywords: item
-                .get_child("keywords")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            affects: item
-                .get_child("affects")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
+            pending: parse_child(item, "pending"),
+            msgid: get_text_owned(item.get_child("msgid")),
+            owner: get_text_owned(item.get_child("owner")),
+            keywords: get_text_owned(item.get_child("keywords")),
+            affects: get_text_owned(item.get_child("affects")),
             unarchived: item
                 .get_child("unarchived")
                 .and_then(|e| e.get_text())
-                .as_ref()
-                .and_then(|s| parse_bool(s).ok()),
-            blocks: item
-                .get_child("blocks")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            found_date: item.get_child("found_date").map(|e| {
-                e.children
-                    .iter()
-                    .filter_map(|c| c.as_element())
-                    .filter_map(|c| {
-                        if c.name == "item" {
-                            Some(c.get_text().unwrap().parse().unwrap())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>()
+                .and_then(|s| parse_bool(s.as_ref()).ok()),
+            blocks: get_text_owned(item.get_child("blocks")),
+            found_date: parse_list_items(item.get_child("found_date"), |s| s.parse().ok()),
+            fixed_versions: parse_list_items(item.get_child("fixed_versions"), |s| {
+                Some(parse_version(s))
             }),
-            fixed_versions: item.get_child("fixed_versions").map(|f| {
-                f.children
-                    .iter()
-                    .filter_map(|c| {
-                        c.as_element()
-                            .and_then(|c| if c.name == "item" { Some(c) } else { None })
-                    })
-                    .map(|d| parse_version(d.get_text().unwrap().as_ref()))
-                    .collect::<Vec<_>>()
-            }),
-            outlook: item
-                .get_child("outlook")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            done: item
-                .get_child("done")
-                .and_then(|e| e.get_text())
-                .map(|t| t.to_string()),
-            forwarded: item
-                .get_child("forwarded")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            summary: item
-                .get_child("summary")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            bug_num: item
-                .get_child("bug_num")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
-            id: item
-                .get_child("id")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            outlook: get_text_owned(item.get_child("outlook")),
+            done: get_text_owned(item.get_child("done")),
+            forwarded: get_text_owned(item.get_child("forwarded")),
+            summary: get_text_owned(item.get_child("summary")),
+            bug_num: parse_child(item, "bug_num"),
+            id: parse_child(item, "id"),
             archived: item
                 .get_child("archived")
                 .and_then(|e| e.get_text())
-                .as_ref()
-                .map(|t| parse_bool(t).unwrap()),
-            found_versions: item.get_child("found_versions").map(|f| {
-                f.children
-                    .iter()
-                    .filter_map(|c| {
-                        c.as_element()
-                            .and_then(|c| if c.name == "item" { Some(c) } else { None })
-                    })
-                    .filter_map(|d| d.get_text().and_then(|v| v.parse::<Version>().ok()))
-                    .collect::<Vec<_>>()
+                .and_then(|t| parse_bool(t.as_ref()).ok()),
+            found_versions: parse_list_items(item.get_child("found_versions"), |s| {
+                s.parse::<Version>().ok()
             }),
             found: item.get_child("found").is_some(),
             fixed: item.get_child("fixed").is_some(),
-            last_modified: item
-                .get_child("last_modified")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
-            tags: item
-                .get_child("tags")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            subject: item
-                .get_child("subject")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            source: item
-                .get_child("source")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            originator: item
-                .get_child("originator")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            package: item
-                .get_child("package")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            location: item
-                .get_child("location")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            log_modified: item
-                .get_child("log_modified")
-                .map(|e| e.get_text().unwrap().parse().unwrap()),
+            last_modified: parse_child(item, "last_modified"),
+            tags: get_text_owned(item.get_child("tags")),
+            subject: get_text_owned(item.get_child("subject")),
+            source: get_text_owned(item.get_child("source")),
+            originator: get_text_owned(item.get_child("originator")),
+            package: get_text_owned(item.get_child("package")),
+            location: get_text_owned(item.get_child("location")),
+            log_modified: parse_child(item, "log_modified"),
             mergedwith: item
                 .get_child("mergedwith")
                 .and_then(|e| e.get_text())
-                .map(|s| s.split_whitespace().map(|i| i.parse().unwrap()).collect()),
-            severity: item
-                .get_child("severity")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            blockedby: item
-                .get_child("blockedby")
-                .and_then(|e| e.get_text())
-                .map(|s| s.to_string()),
-            fixed_date: item.get_child("fixed_date").map(|e| {
-                e.children
-                    .iter()
-                    .filter_map(|c| c.as_element())
-                    .filter_map(|c| {
-                        if c.name == "item" {
-                            Some(c.get_text().unwrap().parse().unwrap())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>()
-            }),
+                .map(|s| {
+                    s.split_whitespace()
+                        .filter_map(|i| i.parse().ok())
+                        .collect()
+                }),
+            severity: get_text_owned(item.get_child("severity")),
+            blockedby: get_text_owned(item.get_child("blockedby")),
+            fixed_date: parse_list_items(item.get_child("fixed_date"), |s| s.parse().ok()),
         }
     }
 }
@@ -496,29 +437,30 @@ fn parse_buglog(item: &xmltree::Element) -> Result<BugLog, String> {
         if let xmltree::XMLNode::Element(e) = child {
             match e.name.as_str() {
                 "header" => {
-                    header = Some(e.get_text().unwrap().to_string());
+                    header = e.get_text().map(|s| s.into_owned());
                 }
                 "msg_num" => {
-                    msgnum = Some(e.get_text().unwrap().parse().unwrap());
+                    msgnum = e.get_text().and_then(|s| s.parse().ok());
                 }
                 "body" => {
-                    body = Some(e.get_text().unwrap().to_string());
+                    body = e.get_text().map(|s| s.into_owned());
                 }
                 "attachments" => {
                     if !e.children.is_empty() {
-                        panic!("Attachments not supported yet");
+                        // TODO: Implement attachment support
+                        return Err("Attachments not supported yet".to_string());
                     }
                 }
                 n => {
-                    panic!("Unknown element: {}", n)
+                    return Err(format!("Unknown element: {}", n));
                 }
             }
         }
     }
     Ok(BugLog {
-        header: header.unwrap(),
-        msgnum: msgnum.unwrap(),
-        body: body.unwrap(),
+        header: header.ok_or("Missing header element")?,
+        msgnum: msgnum.ok_or("Missing or invalid msg_num element")?,
+        body: body.ok_or("Missing body element")?,
     })
 }
 
@@ -589,19 +531,21 @@ impl ToArgXml for &[&str] {
         namespace.put("xsi", XMLNS_XSI);
         namespace.put("soapenc", XMLNS_SOAPENC);
         namespace.put("xsd", XMLNS_XSD);
-        let mut children = Vec::new();
-        for s in self.iter() {
-            children.push(xmltree::Element {
-                prefix: None,
-                namespace: None,
-                namespaces: None,
-                name: "item".to_string(),
-                attributes: hashmap! {
-                    "xsi:type".to_string() => "xsd:string".to_string(),
-                },
-                children: vec![xmltree::XMLNode::Text(s.to_string())],
-            });
-        }
+        let children: Vec<_> = self
+            .iter()
+            .map(|s| {
+                xmltree::XMLNode::Element(xmltree::Element {
+                    prefix: None,
+                    namespace: None,
+                    namespaces: None,
+                    name: "item".to_string(),
+                    attributes: hashmap! {
+                        "xsi:type".to_string() => "xsd:string".to_string(),
+                    },
+                    children: vec![xmltree::XMLNode::Text(s.to_string())],
+                })
+            })
+            .collect();
         xmltree::Element {
             prefix: None,
             namespace: None,
@@ -611,10 +555,7 @@ impl ToArgXml for &[&str] {
                 "xsi:type".to_string() => "soapenc:Array".to_string(),
                 "soapenc:arrayType".to_string() => "xsd:string[]".to_string(),
             },
-            children: children
-                .into_iter()
-                .map(xmltree::XMLNode::Element)
-                .collect(),
+            children,
         }
     }
 }
@@ -625,19 +566,21 @@ impl ToArgXml for &[BugId] {
         namespace.put("xsi", XMLNS_XSI);
         namespace.put("soapenc", XMLNS_SOAPENC);
         namespace.put("xsd", XMLNS_XSD);
-        let mut children = Vec::new();
-        for bug_id in self.iter() {
-            children.push(xmltree::Element {
-                prefix: None,
-                namespace: None,
-                namespaces: None,
-                name: "item".to_string(),
-                attributes: hashmap! {
-                    "xsi:type".to_string() => "xsd:int".to_string(),
-                },
-                children: vec![xmltree::XMLNode::Text(bug_id.to_string())],
-            });
-        }
+        let children: Vec<_> = self
+            .iter()
+            .map(|bug_id| {
+                xmltree::XMLNode::Element(xmltree::Element {
+                    prefix: None,
+                    namespace: None,
+                    namespaces: None,
+                    name: "item".to_string(),
+                    attributes: hashmap! {
+                        "xsi:type".to_string() => "xsd:int".to_string(),
+                    },
+                    children: vec![xmltree::XMLNode::Text(bug_id.to_string())],
+                })
+            })
+            .collect();
         xmltree::Element {
             prefix: None,
             namespace: None,
@@ -647,10 +590,7 @@ impl ToArgXml for &[BugId] {
                 "xsi:type".to_string() => "soapenc:Array".to_string(),
                 "soapenc:arrayType".to_string() => format!("xsd:int[{}]", self.len()),
             },
-            children: children
-                .into_iter()
-                .map(xmltree::XMLNode::Element)
-                .collect(),
+            children,
         }
     }
 }
@@ -815,7 +755,7 @@ pub(crate) fn parse_get_status_response(input: &str) -> Result<HashMap<BugId, Bu
                     .get_text()
                     .ok_or("key has no text")?
                     .parse::<BugId>()
-                    .unwrap();
+                    .map_err(|_| "Invalid BugId format")?;
 
                 let value = BugReport::from(e.get_child("value").ok_or("value not found")?);
 
@@ -853,7 +793,11 @@ pub(crate) fn parse_get_usertag_response(
             for item in e.children.iter() {
                 if let xmltree::XMLNode::Element(e) = item {
                     if e.name == "item" {
-                        ids.push(e.get_text().unwrap().parse::<BugId>().unwrap());
+                        if let Some(text) = e.get_text() {
+                            if let Ok(id) = text.parse::<BugId>() {
+                                ids.push(id);
+                            }
+                        }
                     }
                 }
             }
