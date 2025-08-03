@@ -447,8 +447,7 @@ fn parse_buglog(item: &xmltree::Element) -> Result<BugLog, String> {
                 }
                 "attachments" => {
                     if !e.children.is_empty() {
-                        // TODO: Implement attachment support
-                        return Err("Attachments not supported yet".to_string());
+                        log::warn!("Attachments found but not supported (apparently not implemented on the server side)");
                     }
                 }
                 n => {
