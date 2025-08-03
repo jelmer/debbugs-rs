@@ -692,48 +692,76 @@ fn test_bug_report_from_xml_invalid_values() {
 }
 
 #[derive(Debug)]
+/// Detailed information about a bug report
+///
+/// Contains comprehensive metadata about a bug including its status, severity,
+/// package information, and related bugs.
 pub struct BugReport {
+    /// The pending status of the bug
     pub pending: Option<crate::Pending>,
+    /// Message ID of the initial bug report email
     pub msgid: Option<String>,
+    /// Email address of the person who currently owns/is working on this bug
     pub owner: Option<String>,
+    /// Keywords associated with the bug (deprecated, use `tags` instead)
     #[deprecated = "Use tags instead"]
     pub keywords: Option<String>,
+    /// Packages that are affected by this bug (in addition to the primary package)
     pub affects: Option<String>,
-    /// Has the bug been unrarchived and can be archived again
+    /// Whether the bug has been unarchived and can be archived again
     pub unarchived: Option<bool>,
+    /// Email address or URL where the bug has been forwarded to upstream
     pub forwarded: Option<String>,
+    /// Short summary description of the bug
     pub summary: Option<String>,
-    /// The bugnumber
+    /// The unique bug number identifier
     pub bug_num: Option<BugId>,
-    /// The bug is archived or not
+    /// Whether the bug has been archived (old/resolved bugs)
     pub archived: Option<bool>,
+    /// Versions of the package where this bug was found to exist
     pub found_versions: Option<Vec<Version>>,
+    /// Email address of the person who marked this bug as done/resolved
     pub done: Option<String>,
-    /// Severity of the bugreport
+    /// Severity level of the bug (e.g., "serious", "important", "normal", "minor", "wishlist")
     pub severity: Option<String>,
-    /// Package of the bugreport
+    /// Name of the package this bug affects
     pub package: Option<String>,
+    /// Versions of the package where this bug has been fixed
     pub fixed_versions: Option<Vec<(Option<String>, Option<Version>)>>,
+    /// Email address of the person who originally reported this bug
     pub originator: Option<String>,
+    /// Comma-separated list of bug IDs that this bug blocks
     pub blocks: Option<String>,
+    /// Dates when the bug was found in specific versions (deprecated, currently empty)
     #[deprecated(note = "empty for now")]
     pub found_date: Option<Vec<u32>>,
+    /// Free-form text describing the outlook for fixing this bug
     pub outlook: Option<String>,
+    /// Legacy bug ID field (deprecated, use `bug_num` instead)
     #[deprecated(note = "use bug_num")]
     pub id: Option<BugId>,
+    /// Whether the bug has been found in any versions
     pub found: bool,
+    /// Whether the bug has been fixed in any versions
     pub fixed: bool,
+    /// Unix timestamp of when the bug was last modified
     pub last_modified: Option<u32>,
+    /// Space-separated list of tags associated with this bug
     pub tags: Option<String>,
-    /// Subject/Title of the bugreport
+    /// The title/subject line of the bug report
     pub subject: Option<String>,
+    /// Physical location or context information for the bug
     pub location: Option<String>,
-    /// The bugs this bug was merged with
+    /// List of bug IDs that this bug has been merged with
     pub mergedwith: Option<Vec<BugId>>,
+    /// Comma-separated list of bug IDs that block this bug
     pub blockedby: Option<String>,
+    /// Dates when the bug was fixed in specific versions (deprecated, currently empty)
     #[deprecated(note = "empty for now")]
     pub fixed_date: Option<Vec<u32>>,
+    /// Unix timestamp of when the bug log was last modified
     pub log_modified: Option<u32>,
+    /// Source package name (for binary packages built from source)
     pub source: Option<String>,
 }
 
@@ -849,9 +877,16 @@ impl From<&xmltree::Element> for BugReport {
 }
 
 #[derive(Debug, Clone)]
+/// A log entry (email message) from a bug's communication history
+///
+/// Represents a single email message in the bug's conversation thread,
+/// including the initial bug report and all subsequent correspondence.
 pub struct BugLog {
+    /// The email headers as a raw string (From, To, Subject, Date, etc.)
     pub header: String,
+    /// Sequential message number within this bug's history
     pub msgnum: BugId,
+    /// The email message body content
     pub body: String,
 }
 
@@ -1033,17 +1068,51 @@ fn add_arg_xml<T: ToArgXml>(params: &mut Vec<xmltree::Element>, arg: T) {
 }
 
 #[derive(Debug, Default, Clone)]
+/// Search criteria for finding bugs matching specific conditions
+///
+/// All fields are optional - only specify the criteria you want to filter by.
+/// Multiple criteria are combined with AND logic (all must match).
+///
+/// # Examples
+///
+/// ```no_run
+/// use debbugs::SearchQuery;
+///
+/// // Find all serious bugs in the rust-debbugs package
+/// let query = SearchQuery {
+///     package: Some("rust-debbugs"),
+///     severity: Some("serious"),
+///     ..Default::default()
+/// };
+///
+/// // Find bugs owned by a specific person
+/// let query = SearchQuery {
+///     owner: Some("maintainer@example.com"),
+///     ..Default::default()
+/// };
+/// ```
 pub struct SearchQuery<'a> {
+    /// Package name to search for bugs in
     pub package: Option<&'a str>,
+    /// Specific bug IDs to retrieve (useful for batch operations)
     pub bug_ids: Option<&'a [BugId]>,
+    /// Email address of the person who submitted the bug
     pub submitter: Option<&'a str>,
+    /// Email address of the package maintainer
     pub maintainer: Option<&'a str>,
+    /// Source package name (for bugs affecting source packages)
     pub src: Option<&'a str>,
+    /// Severity level (e.g., "critical", "serious", "important", "normal", "minor", "wishlist")
     pub severity: Option<&'a str>,
+    /// Current status of the bug (open, done, forwarded)
     pub status: Option<crate::BugStatus>,
+    /// Email address of the person currently owning/working on the bug
     pub owner: Option<&'a str>,
+    /// Email address of someone who has participated in the bug discussion
     pub correspondent: Option<&'a str>,
+    /// Whether to include archived bugs, non-archived bugs, or both
     pub archive: Option<crate::Archived>,
+    /// Tags to filter by (bugs must have all specified tags)
     pub tag: Option<&'a [&'a str]>,
 }
 

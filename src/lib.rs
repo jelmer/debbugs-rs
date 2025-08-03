@@ -1,24 +1,74 @@
 //! Rust client interface for the Debian Bug Tracking System (Debbugs)
 //!
+//! This crate provides both async and blocking interfaces to interact with Debbugs instances,
+//! allowing you to search for bugs, retrieve bug reports, and access detailed bug information.
+//!
+//! # Features
+//!
+//! - **blocking** (default): Enables the synchronous `debbugs::blocking::Debbugs` client
+//! - **tokio** (default): Enables the asynchronous `debbugs::Debbugs` client
+//! - **mailparse** (default): Enables parsing of email headers in bug logs
+//!
 //! # Examples
+//!
+//! ## Async Interface
+//! ```no_run
+//! use debbugs::Debbugs;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let client = Debbugs::default();
+//!     let bugs = client.newest_bugs(10).await?;
+//!     println!("Latest bugs: {:?}", bugs);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Blocking Interface
 //! ```no_run
 //! use debbugs::blocking::Debbugs;
-//! let debbugs = Debbugs::default();
-//! println!("{:?}", debbugs.newest_bugs(10).unwrap());
-//!```
 //!
-//! See https://wiki.debian.org/DebbugsSoapInterface for more information on the Debbugs SOAP
-//! interface.
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let client = Debbugs::default();
+//!     let bugs = client.newest_bugs(10)?;
+//!     println!("Latest bugs: {:?}", bugs);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! See the [Debian Debbugs SOAP Interface](https://wiki.debian.org/DebbugsSoapInterface)
+//! documentation for more information about the underlying API.
 mod soap;
 pub use soap::{BugLog, BugReport};
 
 const DEFAULT_URL: &str = "https://bugs.debian.org/cgi-bin/soap.cgi";
 
+/// Errors that can occur when interacting with the Debbugs API
 #[derive(Debug)]
 pub enum Error {
+    /// SOAP protocol related errors
+    ///
+    /// This occurs when there are issues with the SOAP request/response format
+    /// or when the server returns an unexpected SOAP structure.
     SoapError(String),
+
+    /// XML parsing errors
+    ///
+    /// This occurs when the XML response from the server cannot be parsed,
+    /// typically due to malformed XML or unexpected structure.
     XmlError(String),
+
+    /// HTTP request errors
+    ///
+    /// This occurs when there are network issues, connection failures,
+    /// timeouts, or other HTTP-level problems communicating with the server.
     ReqwestError(reqwest::Error),
+
+    /// SOAP fault responses
+    ///
+    /// This occurs when the server returns a SOAP fault, indicating
+    /// an error in processing the request (e.g., invalid parameters,
+    /// server-side errors, or authentication issues).
     Fault(soap::Fault),
 }
 
@@ -28,10 +78,14 @@ impl From<reqwest::Error> for Error {
     }
 }
 
+/// The status of a bug report
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BugStatus {
+    /// Bug has been resolved/fixed
     Done,
+    /// Bug has been forwarded to upstream maintainers
     Forwarded,
+    /// Bug is still open and unresolved
     Open,
 }
 
@@ -58,12 +112,18 @@ impl std::fmt::Display for BugStatus {
     }
 }
 
+/// The pending status of a bug report
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Pending {
+    /// Bug is pending action
     Pending,
+    /// Bug is pending but has been fixed
     PendingFixed,
+    /// Bug has been fixed
     Fixed,
+    /// Bug is done/closed
     Done,
+    /// Bug has been forwarded
     Forwarded,
 }
 
@@ -94,11 +154,15 @@ impl std::fmt::Display for Pending {
     }
 }
 
+/// Whether to search archived bugs
 #[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
 pub enum Archived {
+    /// Only archived bugs
     Archived,
+    /// Only non-archived bugs (default)
     #[default]
     NotArchived,
+    /// Both archived and non-archived bugs
     Both,
 }
 
@@ -140,8 +204,8 @@ impl std::error::Error for Error {}
 
 pub type SoapResponse = Result<(reqwest::StatusCode, String), Error>;
 
-/// A bug ID
-type BugId = i32;
+/// A bug ID used to uniquely identify bugs in the tracking system
+pub type BugId = i32;
 
 pub use soap::SearchQuery;
 
