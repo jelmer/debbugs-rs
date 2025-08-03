@@ -257,49 +257,511 @@ fn test_parse_newest_bugs_response() {
     );
 }
 
+#[test]
+fn test_get_bug_log_request() {
+    let request = get_bug_log_request(123456);
+    assert_eq!(request.name, "Envelope");
+    assert_eq!(request.namespace.as_deref(), Some(XMLNS_SOAPENV));
+
+    let body = request.children[1].as_element().unwrap();
+    let get_bug_log = body.children[0].as_element().unwrap();
+    assert_eq!(get_bug_log.name, "get_bug_log");
+
+    let bugnumber = get_bug_log.children[0].as_element().unwrap();
+    assert_eq!(bugnumber.name, "bugnumber");
+    assert_eq!(bugnumber.children[0].as_text().unwrap(), "123456");
+    assert_eq!(bugnumber.attributes.get("xsi:type").unwrap(), "xsd:int");
+}
+
+#[test]
+fn test_get_bugs_request() {
+    let query = SearchQuery {
+        package: Some("test-package"),
+        owner: Some("test@example.com"),
+        ..Default::default()
+    };
+    let request = get_bugs_request(&query);
+
+    assert_eq!(request.name, "Envelope");
+    let body = request.children[1].as_element().unwrap();
+    let get_bugs = body.children[0].as_element().unwrap();
+    assert_eq!(get_bugs.name, "get_bugs");
+
+    // Check that arguments are present (package + owner = 4 args: "package", value, "owner", value)
+    let args: Vec<&Element> = get_bugs
+        .children
+        .iter()
+        .filter_map(|c| c.as_element())
+        .collect();
+    assert_eq!(args.len(), 4); // Should have package key, package value, owner key, owner value
+}
+
+#[test]
+fn test_get_status_request_single() {
+    let request = get_status_request(&[123456]);
+
+    assert_eq!(request.name, "Envelope");
+    let body = request.children[1].as_element().unwrap();
+    let get_status = body.children[0].as_element().unwrap();
+    assert_eq!(get_status.name, "get_status");
+
+    let bugnumbers = get_status.children[0].as_element().unwrap();
+    assert_eq!(bugnumbers.name, "arg0"); // The array is passed as the first argument
+    let item = bugnumbers.children[0].as_element().unwrap();
+    assert_eq!(item.name, "item");
+    assert_eq!(item.children[0].as_text().unwrap(), "123456");
+}
+
+#[test]
+fn test_get_status_request_multiple() {
+    let request = get_status_request(&[123, 456, 789]);
+
+    let body = request.children[1].as_element().unwrap();
+    let get_status = body.children[0].as_element().unwrap();
+    let bugnumbers = get_status.children[0].as_element().unwrap();
+    assert_eq!(bugnumbers.name, "arg0");
+
+    let items: Vec<i32> = bugnumbers
+        .children
+        .iter()
+        .filter_map(|c| c.as_element())
+        .filter_map(|e| e.children[0].as_text())
+        .filter_map(|t| t.parse().ok())
+        .collect();
+
+    assert_eq!(items, vec![123, 456, 789]);
+}
+
+#[test]
+fn test_get_usertag_request() {
+    let request = get_usertag_request("user@example.com", &["tag1", "tag2"]);
+
+    assert_eq!(request.name, "Envelope");
+    let body = request.children[1].as_element().unwrap();
+    let get_usertag = body.children[0].as_element().unwrap();
+    assert_eq!(get_usertag.name, "get_usertag");
+
+    // First arg should be email
+    let email_arg = get_usertag.children[0].as_element().unwrap();
+    assert_eq!(email_arg.children[0].as_text().unwrap(), "user@example.com");
+
+    // Following args should be tags
+    let tag1_arg = get_usertag.children[1].as_element().unwrap();
+    assert_eq!(tag1_arg.children[0].as_text().unwrap(), "tag1");
+
+    let tag2_arg = get_usertag.children[2].as_element().unwrap();
+    assert_eq!(tag2_arg.children[0].as_text().unwrap(), "tag2");
+}
+
+#[test]
+fn test_to_arg_xml_string() {
+    let s = "test string";
+    let elem = s.to_arg_xml("test_arg".to_string());
+    assert_eq!(elem.name, "test_arg");
+    assert_eq!(elem.children[0].as_text().unwrap(), "test string");
+}
+
+#[test]
+fn test_to_arg_xml_str_array() {
+    let v = ["a", "b"];
+    let slice: &[&str] = &v;
+    let elem = slice.to_arg_xml("test_array".to_string());
+    assert_eq!(elem.name, "test_array");
+    assert!(elem.attributes.get("xsi:type").unwrap().contains("Array"));
+
+    let items: Vec<String> = elem
+        .children
+        .iter()
+        .filter_map(|c| c.as_element())
+        .filter_map(|e| e.children[0].as_text())
+        .map(|t| t.to_string())
+        .collect();
+    assert_eq!(items, vec!["a", "b"]);
+}
+
+#[test]
+fn test_add_arg_xml() {
+    let mut params = Vec::new();
+    add_arg_xml(&mut params, "test value");
+
+    assert_eq!(params.len(), 1);
+    assert_eq!(params[0].name, "arg0");
+    assert_eq!(params[0].children[0].as_text().unwrap(), "test value");
+
+    add_arg_xml(&mut params, "second value");
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[1].name, "arg1");
+    assert_eq!(params[1].children[0].as_text().unwrap(), "second value");
+}
+
+#[test]
+fn test_parse_fault() {
+    let fault_xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <soap:Fault>
+      <faultcode>Client</faultcode>
+      <faultstring>Invalid request</faultstring>
+      <faultactor>http://bugs.debian.org</faultactor>
+      <detail>Bug ID not found</detail>
+    </soap:Fault>
+  </soap:Body>
+</soap:Envelope>"###;
+
+    let fault = parse_fault(fault_xml).unwrap();
+    assert_eq!(fault.faultcode, "Client");
+    assert_eq!(fault.faultstring, "Invalid request");
+    assert_eq!(fault.faultactor, Some("http://bugs.debian.org".to_string()));
+    assert_eq!(fault.detail, Some("Bug ID not found".to_string()));
+}
+
+#[test]
+fn test_parse_fault_minimal() {
+    let fault_xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <soap:Fault>
+      <faultcode>Server</faultcode>
+      <faultstring>Internal error</faultstring>
+    </soap:Fault>
+  </soap:Body>
+</soap:Envelope>"###;
+
+    let fault = parse_fault(fault_xml).unwrap();
+    assert_eq!(fault.faultcode, "Server");
+    assert_eq!(fault.faultstring, "Internal error");
+    assert_eq!(fault.faultactor, None);
+    assert_eq!(fault.detail, None);
+}
+
+#[test]
+fn test_parse_get_bug_log_response() {
+    let xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <get_bug_logResponse xmlns="Debbugs/SOAP">
+      <soapenc:Array soapenc:arrayType="xsd:ur-type[1]" xsi:type="soapenc:Array">
+        <item>
+          <header>Subject: Test bug</header>
+          <body>This is a test bug report.</body>
+          <msg_num>1</msg_num>
+        </item>
+      </soapenc:Array>
+    </get_bug_logResponse>
+  </soap:Body>
+</soap:Envelope>"###;
+
+    let bug_log = parse_get_bug_log_response(xml).unwrap();
+    assert_eq!(bug_log.len(), 1);
+    assert_eq!(bug_log[0].header, "Subject: Test bug");
+    assert_eq!(bug_log[0].body, "This is a test bug report.");
+    assert_eq!(bug_log[0].msgnum, 1);
+}
+
+#[test]
+fn test_parse_get_bugs_response() {
+    let xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <get_bugsResponse xmlns="Debbugs/SOAP">
+      <soapenc:Array soapenc:arrayType="xsd:int[3]" xsi:type="soapenc:Array">
+        <item xsi:type="xsd:int">123</item>
+        <item xsi:type="xsd:int">456</item>
+        <item xsi:type="xsd:int">789</item>
+      </soapenc:Array>
+    </get_bugsResponse>
+  </soap:Body>
+</soap:Envelope>"###;
+
+    let bug_ids = parse_get_bugs_response(xml).unwrap();
+    assert_eq!(bug_ids, vec![123, 456, 789]);
+}
+
+#[test]
+fn test_parse_get_status_response() {
+    let xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <get_statusResponse xmlns="Debbugs/SOAP">
+      <s-gensym3>
+        <item>
+          <key>123</key>
+          <value>
+            <pending>pending</pending>
+            <severity>normal</severity>
+            <package>test-package</package>
+            <subject>Test subject</subject>
+          </value>
+        </item>
+      </s-gensym3>
+    </get_statusResponse>
+  </soap:Body>
+</soap:Envelope>"###;
+
+    let statuses = parse_get_status_response(xml).unwrap();
+    assert_eq!(statuses.len(), 1);
+    assert!(statuses.contains_key(&123));
+    let bug_report = &statuses[&123];
+    assert_eq!(bug_report.severity, Some("normal".to_string()));
+    assert_eq!(bug_report.package, Some("test-package".to_string()));
+    assert_eq!(bug_report.subject, Some("Test subject".to_string()));
+}
+
+#[test]
+fn test_parse_get_usertag_response() {
+    let xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <get_usertagResponse xmlns="Debbugs/SOAP">
+      <s-gensym3>
+        <tag1>
+          <item>123</item>
+          <item>456</item>
+        </tag1>
+        <tag2>
+          <item>789</item>
+        </tag2>
+      </s-gensym3>
+    </get_usertagResponse>
+  </soap:Body>
+</soap:Envelope>"###;
+
+    let usertags = parse_get_usertag_response(xml).unwrap();
+    assert_eq!(usertags.len(), 2);
+    assert_eq!(usertags["tag1"], vec![123, 456]);
+    assert_eq!(usertags["tag2"], vec![789]);
+}
+
+#[test]
+fn test_parse_response_envelope_invalid() {
+    let invalid_xml = r###"<?xml version="1.0" encoding="UTF-8"?>
+<invalid>
+  <body>test</body>
+</invalid>"###;
+
+    let result = parse_response_envelope(invalid_xml, "test");
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .contains("Root element is not a valid soap:Envelope"));
+}
+
+#[test]
+fn test_parse_bool() {
+    assert_eq!(parse_bool("1").unwrap(), true);
+    assert_eq!(parse_bool("0").unwrap(), false);
+    assert!(parse_bool("invalid").is_err());
+    assert!(parse_bool("true").is_err());
+}
+
+#[test]
+fn test_bug_report_from_xml_minimal() {
+    let xml_str = r###"
+    <value>
+        <bug_num>123456</bug_num>
+        <subject>Test bug subject</subject>
+        <severity>normal</severity>
+        <package>test-package</package>
+    </value>
+    "###;
+
+    let element = xmltree::Element::parse(xml_str.as_bytes()).unwrap();
+    let bug_report = BugReport::from(&element);
+
+    assert_eq!(bug_report.bug_num, Some(123456));
+    assert_eq!(bug_report.subject, Some("Test bug subject".to_string()));
+    assert_eq!(bug_report.severity, Some("normal".to_string()));
+    assert_eq!(bug_report.package, Some("test-package".to_string()));
+}
+
+#[test]
+fn test_bug_report_from_xml_comprehensive() {
+    let xml_str = r###"
+    <value>
+        <bug_num>123456</bug_num>
+        <subject>Test bug subject</subject>
+        <severity>important</severity>
+        <package>test-package</package>
+        <last_modified>1234567890</last_modified>
+        <tags>patch,security</tags>
+        <pending>pending</pending>
+        <done>fixed in version 1.2</done>
+        <archived>0</archived>
+        <unarchived>1</unarchived>
+        <forwarded>https://example.com/bug/123</forwarded>
+        <mergedwith>789 101112</mergedwith>
+        <blockedby>456</blockedby>
+        <blocks>789</blocks>
+        <summary>Short summary of the bug</summary>
+        <affects>affected-package</affects>
+        <log_modified>1234567900</log_modified>
+        <location>main</location>
+        <source>source-package</source>
+        <owner>maintainer@example.com</owner>
+        <originator>user@example.com</originator>
+        <msgid>&lt;message-id@example.com&gt;</msgid>
+        <found_versions>
+            <item>1.0</item>
+            <item>1.1</item>
+        </found_versions>
+        <fixed_versions>
+            <item>1.2</item>
+        </fixed_versions>
+    </value>
+    "###;
+
+    let element = xmltree::Element::parse(xml_str.as_bytes()).unwrap();
+    let bug_report = BugReport::from(&element);
+
+    assert_eq!(bug_report.bug_num, Some(123456));
+    assert_eq!(bug_report.subject, Some("Test bug subject".to_string()));
+    assert_eq!(bug_report.severity, Some("important".to_string()));
+    assert_eq!(bug_report.package, Some("test-package".to_string()));
+    assert_eq!(bug_report.last_modified, Some(1234567890));
+    assert_eq!(bug_report.tags, Some("patch,security".to_string())); // Tags are stored as a comma-separated string
+    assert_eq!(bug_report.pending, Some(crate::Pending::Pending));
+    assert_eq!(bug_report.done, Some("fixed in version 1.2".to_string())); // done field content
+    assert_eq!(bug_report.archived, Some(false));
+    assert_eq!(bug_report.unarchived, Some(true));
+    assert_eq!(
+        bug_report.forwarded,
+        Some("https://example.com/bug/123".to_string())
+    );
+    assert_eq!(bug_report.mergedwith, Some(vec![789, 101112]));
+    assert_eq!(bug_report.blockedby, Some("456".to_string())); // Stored as string
+    assert_eq!(bug_report.blocks, Some("789".to_string())); // Stored as string
+    assert_eq!(
+        bug_report.summary,
+        Some("Short summary of the bug".to_string())
+    );
+    assert_eq!(bug_report.affects, Some("affected-package".to_string()));
+    assert_eq!(bug_report.log_modified, Some(1234567900));
+    assert_eq!(bug_report.location, Some("main".to_string()));
+    assert_eq!(bug_report.source, Some("source-package".to_string()));
+    assert_eq!(bug_report.owner, Some("maintainer@example.com".to_string()));
+    assert_eq!(bug_report.originator, Some("user@example.com".to_string())); // submitter -> originator
+    assert_eq!(
+        bug_report.msgid,
+        Some("<message-id@example.com>".to_string())
+    );
+    // Note: found_versions and fixed_versions have complex types, testing basic presence
+    assert!(bug_report.found_versions.is_some());
+    assert!(bug_report.fixed_versions.is_some());
+}
+
+#[test]
+fn test_bug_report_from_xml_empty() {
+    let xml_str = r###"<value></value>"###;
+
+    let element = xmltree::Element::parse(xml_str.as_bytes()).unwrap();
+    let bug_report = BugReport::from(&element);
+
+    // All fields should be None for empty XML
+    assert_eq!(bug_report.bug_num, None);
+    assert_eq!(bug_report.subject, None);
+    assert_eq!(bug_report.severity, None);
+    assert_eq!(bug_report.package, None);
+    assert_eq!(bug_report.last_modified, None);
+    assert_eq!(bug_report.tags, None);
+    assert_eq!(bug_report.pending, None);
+    assert_eq!(bug_report.done, None);
+    assert_eq!(bug_report.archived, None);
+}
+
+#[test]
+fn test_bug_report_from_xml_invalid_values() {
+    let xml_str = r###"
+    <value>
+        <bug_num>not-a-number</bug_num>
+        <last_modified>invalid-date</last_modified>
+        <archived>sometimes</archived>
+        <pending>unknown-status</pending>
+    </value>
+    "###;
+
+    let element = xmltree::Element::parse(xml_str.as_bytes()).unwrap();
+    let bug_report = BugReport::from(&element);
+
+    // Invalid values should result in None
+    assert_eq!(bug_report.bug_num, None);
+    assert_eq!(bug_report.last_modified, None);
+    assert_eq!(bug_report.archived, None);
+    assert_eq!(bug_report.pending, None);
+    // done field accepts any string value
+    assert!(bug_report.done.is_none()); // Not provided in test XML
+}
+
 #[derive(Debug)]
+/// Detailed information about a bug report
+///
+/// Contains comprehensive metadata about a bug including its status, severity,
+/// package information, and related bugs.
 pub struct BugReport {
+    /// The pending status of the bug
     pub pending: Option<crate::Pending>,
+    /// Message ID of the initial bug report email
     pub msgid: Option<String>,
+    /// Email address of the person who currently owns/is working on this bug
     pub owner: Option<String>,
+    /// Keywords associated with the bug (deprecated, use `tags` instead)
     #[deprecated = "Use tags instead"]
     pub keywords: Option<String>,
+    /// Packages that are affected by this bug (in addition to the primary package)
     pub affects: Option<String>,
-    /// Has the bug been unrarchived and can be archived again
+    /// Whether the bug has been unarchived and can be archived again
     pub unarchived: Option<bool>,
+    /// Email address or URL where the bug has been forwarded to upstream
     pub forwarded: Option<String>,
+    /// Short summary description of the bug
     pub summary: Option<String>,
-    /// The bugnumber
+    /// The unique bug number identifier
     pub bug_num: Option<BugId>,
-    /// The bug is archived or not
+    /// Whether the bug has been archived (old/resolved bugs)
     pub archived: Option<bool>,
+    /// Versions of the package where this bug was found to exist
     pub found_versions: Option<Vec<Version>>,
+    /// Email address of the person who marked this bug as done/resolved
     pub done: Option<String>,
-    /// Severity of the bugreport
+    /// Severity level of the bug (e.g., "serious", "important", "normal", "minor", "wishlist")
     pub severity: Option<String>,
-    /// Package of the bugreport
+    /// Name of the package this bug affects
     pub package: Option<String>,
+    /// Versions of the package where this bug has been fixed
     pub fixed_versions: Option<Vec<(Option<String>, Option<Version>)>>,
+    /// Email address of the person who originally reported this bug
     pub originator: Option<String>,
+    /// Comma-separated list of bug IDs that this bug blocks
     pub blocks: Option<String>,
+    /// Dates when the bug was found in specific versions (deprecated, currently empty)
     #[deprecated(note = "empty for now")]
     pub found_date: Option<Vec<u32>>,
+    /// Free-form text describing the outlook for fixing this bug
     pub outlook: Option<String>,
+    /// Legacy bug ID field (deprecated, use `bug_num` instead)
     #[deprecated(note = "use bug_num")]
     pub id: Option<BugId>,
+    /// Whether the bug has been found in any versions
     pub found: bool,
+    /// Whether the bug has been fixed in any versions
     pub fixed: bool,
+    /// Unix timestamp of when the bug was last modified
     pub last_modified: Option<u32>,
+    /// Space-separated list of tags associated with this bug
     pub tags: Option<String>,
-    /// Subject/Title of the bugreport
+    /// The title/subject line of the bug report
     pub subject: Option<String>,
+    /// Physical location or context information for the bug
     pub location: Option<String>,
-    /// The bugs this bug was merged with
+    /// List of bug IDs that this bug has been merged with
     pub mergedwith: Option<Vec<BugId>>,
+    /// Comma-separated list of bug IDs that block this bug
     pub blockedby: Option<String>,
+    /// Dates when the bug was fixed in specific versions (deprecated, currently empty)
     #[deprecated(note = "empty for now")]
     pub fixed_date: Option<Vec<u32>>,
+    /// Unix timestamp of when the bug log was last modified
     pub log_modified: Option<u32>,
+    /// Source package name (for binary packages built from source)
     pub source: Option<String>,
 }
 
@@ -415,9 +877,16 @@ impl From<&xmltree::Element> for BugReport {
 }
 
 #[derive(Debug, Clone)]
+/// A log entry (email message) from a bug's communication history
+///
+/// Represents a single email message in the bug's conversation thread,
+/// including the initial bug report and all subsequent correspondence.
 pub struct BugLog {
+    /// The email headers as a raw string (From, To, Subject, Date, etc.)
     pub header: String,
+    /// Sequential message number within this bug's history
     pub msgnum: BugId,
+    /// The email message body content
     pub body: String,
 }
 
@@ -599,17 +1068,51 @@ fn add_arg_xml<T: ToArgXml>(params: &mut Vec<xmltree::Element>, arg: T) {
 }
 
 #[derive(Debug, Default, Clone)]
+/// Search criteria for finding bugs matching specific conditions
+///
+/// All fields are optional - only specify the criteria you want to filter by.
+/// Multiple criteria are combined with AND logic (all must match).
+///
+/// # Examples
+///
+/// ```no_run
+/// use debbugs::SearchQuery;
+///
+/// // Find all serious bugs in the rust-debbugs package
+/// let query = SearchQuery {
+///     package: Some("rust-debbugs"),
+///     severity: Some("serious"),
+///     ..Default::default()
+/// };
+///
+/// // Find bugs owned by a specific person
+/// let query = SearchQuery {
+///     owner: Some("maintainer@example.com"),
+///     ..Default::default()
+/// };
+/// ```
 pub struct SearchQuery<'a> {
+    /// Package name to search for bugs in
     pub package: Option<&'a str>,
+    /// Specific bug IDs to retrieve (useful for batch operations)
     pub bug_ids: Option<&'a [BugId]>,
+    /// Email address of the person who submitted the bug
     pub submitter: Option<&'a str>,
+    /// Email address of the package maintainer
     pub maintainer: Option<&'a str>,
+    /// Source package name (for bugs affecting source packages)
     pub src: Option<&'a str>,
+    /// Severity level (e.g., "critical", "serious", "important", "normal", "minor", "wishlist")
     pub severity: Option<&'a str>,
+    /// Current status of the bug (open, done, forwarded)
     pub status: Option<crate::BugStatus>,
+    /// Email address of the person currently owning/working on the bug
     pub owner: Option<&'a str>,
+    /// Email address of someone who has participated in the bug discussion
     pub correspondent: Option<&'a str>,
+    /// Whether to include archived bugs, non-archived bugs, or both
     pub archive: Option<crate::Archived>,
+    /// Tags to filter by (bugs must have all specified tags)
     pub tag: Option<&'a [&'a str]>,
 }
 
