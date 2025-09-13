@@ -892,7 +892,7 @@ pub struct BugLog {
 
 impl BugLog {
     #[cfg(feature = "mailparse")]
-    pub fn headers(&self) -> Result<Vec<mailparse::MailHeader>, mailparse::MailParseError> {
+    pub fn headers(&self) -> Result<Vec<mailparse::MailHeader<'_>>, mailparse::MailParseError> {
         let (headers, _ix_body) = mailparse::parse_headers(self.header.as_bytes())?;
         Ok(headers)
     }
