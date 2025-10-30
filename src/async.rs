@@ -195,8 +195,8 @@ impl Debbugs {
     ///     let client = Debbugs::default();
     ///     let reports = client.get_status(&[12345, 67890]).await?;
     ///     for (bug_id, report) in reports {
-    ///         println!("Bug #{}: {} ({})", 
-    ///             bug_id, 
+    ///         println!("Bug #{}: {} ({})",
+    ///             bug_id,
     ///             report.subject.as_deref().unwrap_or("No subject"),
     ///             report.severity.as_deref().unwrap_or("No severity")
     ///         );
