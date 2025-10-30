@@ -162,7 +162,7 @@ checksum = "2a2330da5de22e8a3cb63252ce2abb30116bf5265e89c0e01bc17015ce30a476"
 
 [[package]]
 name = "debbugs"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "debversion",
  "env_logger",
