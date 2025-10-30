@@ -39,6 +39,6 @@ jobs:
     - name: Install cargo-minimal-versions and cargo-hack
       run: cargo install cargo-minimal-versions cargo-hack
     - name: Run tests with minimal versions
-      run: cargo minimal-versions test --verbose
+      run: cargo minimal-versions --direct test --verbose
       env:
         RUSTFLAGS: -Dwarnings
