@@ -20,7 +20,7 @@ required-features = [ "tokio",]
 
 [package]
 name = "debbugs"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = [ "Jelmer Vernooĳ <jelmer@jelmer.uk>",]
 repository = "https://github.com/jelmer/debbugs-rs"
@@ -40,7 +40,7 @@ lazy-regex = ">=2.3, <4"
 log = "0.4.8"
 maplit = "1"
 reqwest = ">=0.11, <0.13"
-xmltree = "0.11"
+xmltree = ">=0.10,<0.12"
 debversion = ">=0.4,<0.6"
 
 [features]
