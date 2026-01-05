@@ -39,7 +39,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 lazy-regex = ">=2.3, <4"
 log = "0.4.29"
 maplit = "1"
-reqwest = ">=0.11, <0.13"
+reqwest = ">=0.11, <0.14"
 xmltree = ">=0.10, <0.13"
 debversion = ">=0.4,<0.6"
 
