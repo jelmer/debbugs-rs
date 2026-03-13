@@ -41,7 +41,8 @@
 mod soap;
 pub use soap::{BugLog, BugReport};
 
-const DEFAULT_URL: &str = "https://bugs.debian.org/cgi-bin/soap.cgi";
+pub const DEFAULT_URL: &str = "https://bugs.debian.org/cgi-bin/soap.cgi";
+pub const DEFAULT_USER_AGENT: &str = concat!("debbugs-rs/", env!("CARGO_PKG_VERSION"));
 
 /// Errors that can occur when interacting with the Debbugs API
 #[derive(Debug)]
