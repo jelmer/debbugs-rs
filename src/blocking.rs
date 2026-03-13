@@ -1,6 +1,6 @@
 use log::debug;
 
-use crate::{BugId, Error, SoapResponse};
+use crate::{BugId, Error, SoapResponse, DEFAULT_USER_AGENT};
 
 impl Debbugs {
     fn send_soap_request(&self, request: &xmltree::Element, action: &str) -> SoapResponse {
@@ -52,8 +52,21 @@ impl Debbugs {
     /// let client = Debbugs::new("https://custom-debbugs.example.com/soap.cgi");
     /// ```
     pub fn new<S: Into<String>>(url: S) -> Self {
+        Self::with_user_agent(url, DEFAULT_USER_AGENT)
+    }
+
+    /// Creates a new blocking Debbugs client with a custom user agent string
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The URL of the Debbugs SOAP endpoint
+    /// * `user_agent` - The User-Agent header to send with requests
+    pub fn with_user_agent<S: Into<String>>(url: S, user_agent: &str) -> Self {
         Debbugs {
-            client: reqwest::blocking::Client::new(),
+            client: reqwest::blocking::Client::builder()
+                .user_agent(user_agent)
+                .build()
+                .expect("failed to build HTTP client"),
             url: url.into(),
         }
     }
